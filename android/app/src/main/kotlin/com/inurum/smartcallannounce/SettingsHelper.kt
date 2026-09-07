@@ -15,7 +15,7 @@ object SettingsHelper {
     }
 
     fun isBluetoothOnly(context: Context): Boolean {
-        return getPrefs(context).getBoolean("flutter.announceOnlyWithBluetooth", true)
+        return getPrefs(context).getBoolean("flutter.announceOnlyWithBluetooth", false)
     }
 
     fun getLanguage(context: Context): String {

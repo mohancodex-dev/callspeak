@@ -32,10 +32,6 @@ class CallAnnounceService : Service() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-
-        callReceiver = CallReceiver()
-        val filter = IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
-        registerReceiver(callReceiver, filter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -49,9 +45,6 @@ class CallAnnounceService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        callReceiver?.let {
-            unregisterReceiver(it)
-        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {

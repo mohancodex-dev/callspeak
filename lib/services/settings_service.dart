@@ -11,7 +11,7 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     return CallSettings(
       announcementEnabled: prefs.getBool(keyAnnouncementEnabled) ?? false,
-      announceOnlyWithBluetooth: prefs.getBool(keyAnnounceOnlyWithBluetooth) ?? true,
+      announceOnlyWithBluetooth: prefs.getBool(keyAnnounceOnlyWithBluetooth) ?? false,
       language: prefs.getString(keyLanguage) ?? 'en-US',
       speechRate: double.tryParse(prefs.getString(keySpeechRate) ?? '1.0') ?? 1.0,
     );
