@@ -48,27 +48,27 @@ object AnnouncementManager {
     }
     
     fun testAnnouncement(context: Context) {
-        speak(context, "This is a test announcement from Smart Call Announce")
+        speak(context, "This is a test announcement from Smart Call Announce", isTest = true)
     }
 
-    private fun speak(context: Context, text: String) {
+    private fun speak(context: Context, text: String, isTest: Boolean = false) {
         val languageStr = SettingsHelper.getLanguage(context)
         val speechRate = SettingsHelper.getSpeechRate(context)
 
         if (tts == null) {
             tts = TextToSpeech(context.applicationContext) { status ->
                 if (status == TextToSpeech.SUCCESS) {
-                    configureAndSpeak(text, languageStr, speechRate)
+                    configureAndSpeak(text, languageStr, speechRate, isTest)
                 } else {
                     Log.e(TAG, "TTS Initialization failed")
                 }
             }
         } else {
-            configureAndSpeak(text, languageStr, speechRate)
+            configureAndSpeak(text, languageStr, speechRate, isTest)
         }
     }
 
-    private fun configureAndSpeak(text: String, languageStr: String, rate: Float) {
+    private fun configureAndSpeak(text: String, languageStr: String, rate: Float, isTest: Boolean = false) {
         tts?.let {
             val locale = Locale.forLanguageTag(languageStr)
             val result = it.setLanguage(locale)
@@ -79,14 +79,19 @@ object AnnouncementManager {
             it.setSpeechRate(rate)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val usage = if (isTest) {
+                    android.media.AudioAttributes.USAGE_MEDIA
+                } else {
+                    android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+                }
                 val audioAttributes = android.media.AudioAttributes.Builder()
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setUsage(usage)
                     .build()
                 it.setAudioAttributes(audioAttributes)
             }
             
-            val finalAnnouncement = "$text. $text. $text."
+            val finalAnnouncement = if (isTest) text else "$text. $text. $text."
             it.speak(finalAnnouncement, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
             isSpeaking = true
         }
