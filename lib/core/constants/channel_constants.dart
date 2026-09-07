@@ -1,4 +1,4 @@
 class ChannelConstants {
-  static const String methodChannel = 'com.inurum.callspeak/methods';
-  static const String eventChannel = 'com.inurum.callspeak/events';
+  static const String methodChannel = 'com.inurum.smartcallannounce/methods';
+  static const String eventChannel = 'com.inurum.smartcallannounce/events';
 }

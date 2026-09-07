@@ -16,7 +16,7 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CallSpeak'),
+        title: const Text('Smart Call Announce'),
         centerTitle: true,
       ),
       body: settingsAsyncValue.when(
@@ -111,7 +111,7 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             SwitchListTile(
-              title: const Text('CallSpeak'),
+              title: const Text('Smart Call Announce'),
               subtitle: const Text('Enable or disable caller announcement'),
               value: settings.announcementEnabled,
               onChanged: (val) {

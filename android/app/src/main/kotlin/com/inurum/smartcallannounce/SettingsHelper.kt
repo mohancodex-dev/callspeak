@@ -1,4 +1,4 @@
-package com.inurum.callspeak
+package com.inurum.smartcallannounce
 
 import android.content.Context
 import android.content.SharedPreferences

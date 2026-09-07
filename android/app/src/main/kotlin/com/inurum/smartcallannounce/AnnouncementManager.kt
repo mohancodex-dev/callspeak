@@ -1,4 +1,4 @@
-package com.inurum.callspeak
+package com.inurum.smartcallannounce
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
@@ -20,7 +20,7 @@ object AnnouncementManager {
 
     fun handleIncomingCall(context: Context, phoneNumber: String?) {
         if (!SettingsHelper.isAnnouncementEnabled(context)) {
-            Log.d(TAG, "CallSpeak is disabled")
+            Log.d(TAG, "Smart Call Announce is disabled")
             return
         }
 
@@ -48,7 +48,7 @@ object AnnouncementManager {
     }
     
     fun testAnnouncement(context: Context) {
-        speak(context, "This is a test announcement from CallSpeak")
+        speak(context, "This is a test announcement from Smart Call Announce")
     }
 
     private fun speak(context: Context, text: String) {
@@ -79,7 +79,7 @@ object AnnouncementManager {
             it.setSpeechRate(rate)
             
             val finalAnnouncement = "$text. $text. $text."
-            it.speak(finalAnnouncement, TextToSpeech.QUEUE_FLUSH, null, "callspeak_announcement")
+            it.speak(finalAnnouncement, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
             isSpeaking = true
         }
     }

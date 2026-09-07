@@ -1,4 +1,4 @@
-package com.inurum.callspeak
+package com.inurum.smartcallannounce
 
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -13,8 +13,8 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
-    private val METHOD_CHANNEL = "com.inurum.callspeak/methods"
-    private val EVENT_CHANNEL = "com.inurum.callspeak/events"
+    private val METHOD_CHANNEL = "com.inurum.smartcallannounce/methods"
+    private val EVENT_CHANNEL = "com.inurum.smartcallannounce/events"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

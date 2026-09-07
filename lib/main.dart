@@ -4,16 +4,16 @@ import 'features/caller_announcement/presentation/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: CallSpeakApp()));
+  runApp(const ProviderScope(child: SmartCallAnnounceApp()));
 }
 
-class CallSpeakApp extends StatelessWidget {
-  const CallSpeakApp({super.key});
+class SmartCallAnnounceApp extends StatelessWidget {
+  const SmartCallAnnounceApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CallSpeak',
+      title: 'Smart Call Announce',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.deepPurple,
