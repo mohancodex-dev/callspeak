@@ -16,6 +16,13 @@ class MainActivity: FlutterActivity() {
     private val METHOD_CHANNEL = "com.inurum.smartcallannounce/methods"
     private val EVENT_CHANNEL = "com.inurum.smartcallannounce/events"
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (SettingsHelper.isAnnouncementEnabled(this)) {
+            startAnnouncerService()
+        }
+    }
+
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
@@ -27,6 +34,14 @@ class MainActivity: FlutterActivity() {
                 }
                 "getBluetoothStatus" -> {
                     result.success(isBluetoothAudioConnected())
+                }
+                "startService" -> {
+                    startAnnouncerService()
+                    result.success(true)
+                }
+                "stopService" -> {
+                    stopAnnouncerService()
+                    result.success(true)
                 }
                 else -> {
                     result.notImplemented()
@@ -72,5 +87,20 @@ class MainActivity: FlutterActivity() {
             }
         }
         return false
+    }
+
+    private fun startAnnouncerService() {
+        val serviceIntent = android.content.Intent(this, CallAnnounceService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+    }
+
+    private fun stopAnnouncerService() {
+        val serviceIntent = android.content.Intent(this, CallAnnounceService::class.java)
+        serviceIntent.action = "STOP_SERVICE"
+        startService(serviceIntent)
     }
 }

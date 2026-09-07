@@ -116,6 +116,11 @@ class HomeScreen extends ConsumerWidget {
               value: settings.announcementEnabled,
               onChanged: (val) {
                 notifier.updateSettings(settings.copyWith(announcementEnabled: val));
+                if (val) {
+                  ref.read(nativeBridgeProvider).startService();
+                } else {
+                  ref.read(nativeBridgeProvider).stopService();
+                }
               },
             ),
             const Divider(),
@@ -207,7 +212,7 @@ class _StatusRow extends StatelessWidget {
         Icon(icon, color: color),
         const SizedBox(width: 12),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
-        ?action,
+        if (action != null) action!,
       ],
     );
   }

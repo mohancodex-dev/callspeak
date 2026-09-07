@@ -78,6 +78,14 @@ object AnnouncementManager {
             }
             it.setSpeechRate(rate)
             
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val audioAttributes = android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .build()
+                it.setAudioAttributes(audioAttributes)
+            }
+            
             val finalAnnouncement = "$text. $text. $text."
             it.speak(finalAnnouncement, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
             isSpeaking = true

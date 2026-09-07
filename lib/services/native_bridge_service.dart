@@ -24,4 +24,24 @@ class NativeBridgeService {
       return false;
     }
   }
+
+  Future<bool> startService() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('startService');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to start service: '${e.message}'.");
+      return false;
+    }
+  }
+
+  Future<bool> stopService() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('stopService');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to stop service: '${e.message}'.");
+      return false;
+    }
+  }
 }
