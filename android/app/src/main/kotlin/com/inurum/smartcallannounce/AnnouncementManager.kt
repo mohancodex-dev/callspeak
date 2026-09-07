@@ -17,9 +17,8 @@ object AnnouncementManager {
     private const val TAG = "AnnouncementManager"
     private var tts: TextToSpeech? = null
     private var isSpeaking = false
-    private var handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var announcementRunnable: Runnable? = null
-    private var announcementCount = 0
+    private var announcementThread: Thread? = null
+    private var isRinging = false
     private const val MAX_ANNOUNCEMENTS = 3
     private const val DELAY_BETWEEN_ANNOUNCEMENTS = 6000L // Approx 6 seconds = 2 rings
 
@@ -56,6 +55,12 @@ object AnnouncementManager {
             return
         }
 
+        if (isRinging) {
+            Log.d(TAG, "Already ringing, ignoring duplicate broadcast")
+            return
+        }
+        isRinging = true
+
         val callerName = getCallerName(context, phoneNumber)
         val nameToAnnounce = callerName ?: "Unknown"
         val languageStr = SettingsHelper.getLanguage(context)
@@ -65,8 +70,9 @@ object AnnouncementManager {
     }
 
     fun stopAnnouncement() {
-        announcementRunnable?.let { handler.removeCallbacks(it) }
-        announcementRunnable = null
+        isRinging = false
+        announcementThread?.interrupt()
+        announcementThread = null
         if (tts != null && isSpeaking) {
             tts?.stop()
             isSpeaking = false
@@ -137,22 +143,23 @@ object AnnouncementManager {
                 it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
                 isSpeaking = true
             } else {
-                announcementCount = 0
-                announcementRunnable?.let { r -> handler.removeCallbacks(r) }
-                
-                announcementRunnable = object : Runnable {
-                    override fun run() {
-                        if (announcementCount < MAX_ANNOUNCEMENTS) {
-                            it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_$announcementCount")
+                announcementThread?.interrupt()
+                announcementThread = Thread {
+                    try {
+                        var count = 0
+                        while (count < MAX_ANNOUNCEMENTS && isRinging) {
+                            it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_$count")
                             isSpeaking = true
-                            announcementCount++
-                            if (announcementCount < MAX_ANNOUNCEMENTS) {
-                                handler.postDelayed(this, DELAY_BETWEEN_ANNOUNCEMENTS)
+                            count++
+                            if (count < MAX_ANNOUNCEMENTS && isRinging) {
+                                Thread.sleep(DELAY_BETWEEN_ANNOUNCEMENTS)
                             }
                         }
+                    } catch (e: InterruptedException) {
+                        Log.d(TAG, "Announcement thread interrupted")
                     }
                 }
-                handler.post(announcementRunnable!!)
+                announcementThread?.start()
             }
         }
     }
