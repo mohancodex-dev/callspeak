@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
 import '../providers/permission_provider.dart';
 import '../providers/bluetooth_status_provider.dart';
+import '../models/call_settings.dart';
 
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -94,7 +95,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSettingsSection(settings, WidgetRef ref, BuildContext context) {
+  Widget _buildSettingsSection(CallSettings settings, WidgetRef ref, BuildContext context) {
     final notifier = ref.read(settingsProvider.notifier);
 
     return Card(
@@ -206,7 +207,7 @@ class _StatusRow extends StatelessWidget {
         Icon(icon, color: color),
         const SizedBox(width: 12),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 16))),
-        if (action != null) action!,
+        ?action,
       ],
     );
   }

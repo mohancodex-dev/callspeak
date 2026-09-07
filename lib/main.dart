@@ -8,7 +8,7 @@ void main() {
 }
 
 class CallSpeakApp extends StatelessWidget {
-  const CallSpeakApp({Key? key}) : super(key: key);
+  const CallSpeakApp({super.key});
 
   @override
   Widget build(BuildContext context) {
