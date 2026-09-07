@@ -18,6 +18,10 @@ object SettingsHelper {
         return getPrefs(context).getBoolean("flutter.announceOnlyWithBluetooth", false)
     }
 
+    fun isAlsoAnnounceOnSpeaker(context: Context): Boolean {
+        return getPrefs(context).getBoolean("flutter.alsoAnnounceOnSpeaker", false)
+    }
+
     fun getLanguage(context: Context): String {
         return getPrefs(context).getString("flutter.language", "en-US") ?: "en-US"
     }

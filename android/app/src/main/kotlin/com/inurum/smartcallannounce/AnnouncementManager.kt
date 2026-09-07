@@ -3,11 +3,17 @@ package com.inurum.smartcallannounce
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.AudioPlaybackConfiguration
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.ContactsContract
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -17,6 +23,13 @@ object AnnouncementManager {
     private const val TAG = "AnnouncementManager"
     private var tts: TextToSpeech? = null
     private var isSpeaking = false
+    private var isSilenced = false
+
+    var onAnnouncementStoppedListener: (() -> Unit)? = null
+    private var silenceReceiver: BroadcastReceiver? = null
+    private var playbackCallback: AudioManager.AudioPlaybackCallback? = null
+    private var registeredContext: Context? = null
+    private var callStartTime = 0L
 
     private fun getLocalizedMessage(languageStr: String, name: String): String {
         return when (languageStr) {
@@ -51,6 +64,10 @@ object AnnouncementManager {
             return
         }
 
+        isSilenced = false
+        callStartTime = System.currentTimeMillis()
+        startSilenceListeners(context)
+
         val callerName = getCallerName(context, phoneNumber)
         val nameToAnnounce = callerName ?: "Unknown"
         val languageStr = SettingsHelper.getLanguage(context)
@@ -60,11 +77,116 @@ object AnnouncementManager {
     }
 
     fun stopAnnouncement() {
+        isSilenced = true
         if (tts != null && isSpeaking) {
             tts?.stop()
             isSpeaking = false
             Log.d(TAG, "Announcement stopped")
         }
+        stopSilenceListeners()
+        onAnnouncementStoppedListener?.invoke()
+    }
+
+    private fun startSilenceListeners(context: Context) {
+        stopSilenceListeners()
+        val appContext = context.applicationContext
+        registeredContext = appContext
+        val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+        // 1. AudioPlaybackCallback (Android 8.0+)
+        // When the user presses the volume button or power button during an incoming call,
+        // Android OS silences and stops the system ringtone.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioManager != null) {
+            var wasSystemRingtoneActive = false
+            playbackCallback = object : AudioManager.AudioPlaybackCallback() {
+                override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) {
+                    super.onPlaybackConfigChanged(configs)
+                    if (isSilenced) return
+
+                    var hasSystemRingtoneNow = false
+                    if (configs != null) {
+                        for (config in configs) {
+                            val attrs = config.audioAttributes
+                            if (attrs.usage == android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE &&
+                                attrs.contentType != android.media.AudioAttributes.CONTENT_TYPE_SPEECH) {
+                                hasSystemRingtoneNow = true
+                                break
+                            }
+                        }
+                    }
+
+                    if (hasSystemRingtoneNow) {
+                        wasSystemRingtoneActive = true
+                    } else if (wasSystemRingtoneActive) {
+                        Log.d(TAG, "System ringtone stopped by user (volume/power button pressed). Silencing announcement.")
+                        stopAnnouncement()
+                    }
+                }
+            }
+
+            try {
+                audioManager.registerAudioPlaybackCallback(
+                    playbackCallback!!,
+                    Handler(Looper.getMainLooper())
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error registering AudioPlaybackCallback", e)
+            }
+        }
+
+        // 2. BroadcastReceiver for hardware volume changes and screen off (power button)
+        silenceReceiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                if (isSilenced) return
+                // Ignore any initial volume broadcast that may happen during call setup (< 500ms)
+                if (System.currentTimeMillis() - callStartTime < 500) return
+
+                val action = intent?.action ?: return
+                Log.d(TAG, "Silence event detected: $action")
+                stopAnnouncement()
+            }
+        }
+
+        val filter = IntentFilter().apply {
+            addAction("android.media.VOLUME_CHANGED_ACTION")
+            addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                appContext.registerReceiver(silenceReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                appContext.registerReceiver(silenceReceiver, filter)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error registering silenceReceiver", e)
+        }
+    }
+
+    private fun stopSilenceListeners() {
+        registeredContext?.let { ctx ->
+            silenceReceiver?.let {
+                try {
+                    ctx.unregisterReceiver(it)
+                } catch (e: Exception) {
+                    // Ignore if already unregistered
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                playbackCallback?.let {
+                    try {
+                        audioManager?.unregisterAudioPlaybackCallback(it)
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
+                }
+            }
+        }
+        silenceReceiver = null
+        playbackCallback = null
+        registeredContext = null
     }
     
     fun testAnnouncement(context: Context) {
@@ -99,6 +221,10 @@ object AnnouncementManager {
     }
 
     private fun configureAndSpeak(context: Context, text: String, languageStr: String, rate: Float, isTest: Boolean = false) {
+        if (isSilenced) {
+            Log.d(TAG, "Announcement is silenced, cancelling speech")
+            return
+        }
         tts?.let {
             val ttsLanguage = if (languageStr == "rathawi-IN") "hi-IN" else languageStr
             val locale = Locale.forLanguageTag(ttsLanguage)
@@ -110,11 +236,14 @@ object AnnouncementManager {
             it.setSpeechRate(rate)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                // We must use USAGE_NOTIFICATION_RINGTONE for incoming calls.
-                // If we use USAGE_MEDIA during a real call, Android OS silences it completely!
-                val usage = if (isTest && isBluetoothAudioConnected(context)) {
-                    android.media.AudioAttributes.USAGE_MEDIA
+                val isBtConnected = isBluetoothAudioConnected(context)
+                val alsoSpeaker = SettingsHelper.isAlsoAnnounceOnSpeaker(context)
+
+                val usage = if (isBtConnected && !alsoSpeaker) {
+                    // Route strictly to Bluetooth headset; internal phone speaker stays silent
+                    android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION
                 } else {
+                    // Ringtone stream routes to phone speaker (and also Bluetooth if connected and alsoSpeaker is true)
                     android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
                 }
                 

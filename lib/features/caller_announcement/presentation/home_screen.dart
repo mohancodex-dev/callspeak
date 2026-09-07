@@ -132,6 +132,15 @@ class HomeScreen extends ConsumerWidget {
               },
             ),
             const Divider(),
+            SwitchListTile(
+              title: const Text('Also announce on phone speaker'),
+              subtitle: const Text('Play sound on speaker even when Bluetooth is connected'),
+              value: settings.alsoAnnounceOnSpeaker,
+              onChanged: (val) {
+                notifier.updateSettings(settings.copyWith(alsoAnnounceOnSpeaker: val));
+              },
+            ),
+            const Divider(),
             ListTile(
               title: const Text('Language'),
               trailing: DropdownButton<String>(

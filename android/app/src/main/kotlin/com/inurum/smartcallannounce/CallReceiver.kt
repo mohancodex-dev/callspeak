@@ -20,7 +20,15 @@ class CallReceiver : BroadcastReceiver() {
             
             val pendingResult = goAsync()
             
-            Thread {
+            var ringingThread: Thread? = null
+            ringingThread = Thread {
+                AnnouncementManager.onAnnouncementStoppedListener = {
+                    try {
+                        ringingThread?.interrupt()
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
+                }
                 try {
                     when (state) {
                         TelephonyManager.EXTRA_STATE_RINGING -> {
@@ -41,12 +49,14 @@ class CallReceiver : BroadcastReceiver() {
                         try {
                             Thread.sleep(20000)
                         } catch (e: InterruptedException) {
-                            // Ignore
+                            Log.d(TAG, "Ringing thread sleep interrupted early")
                         }
                     }
+                    AnnouncementManager.onAnnouncementStoppedListener = null
                     pendingResult.finish()
                 }
-            }.start()
+            }
+            ringingThread.start()
         }
     }
 }
