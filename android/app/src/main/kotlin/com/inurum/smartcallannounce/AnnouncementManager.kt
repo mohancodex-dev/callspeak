@@ -17,10 +17,6 @@ object AnnouncementManager {
     private const val TAG = "AnnouncementManager"
     private var tts: TextToSpeech? = null
     private var isSpeaking = false
-    private var announcementThread: Thread? = null
-    private var isRinging = false
-    private const val MAX_ANNOUNCEMENTS = 3
-    private const val DELAY_BETWEEN_ANNOUNCEMENTS = 6000L // Approx 6 seconds = 2 rings
 
     private fun getLocalizedMessage(languageStr: String, name: String): String {
         return when (languageStr) {
@@ -33,13 +29,13 @@ object AnnouncementManager {
             "kn-IN" -> "$name ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ."
             "ml-IN" -> "$name വിളിക്കുന്നു."
             "pa-IN" -> "$name ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
-            "or-IN" -> "$name ଙ୍କର ଫୋନ୍ ଆସୁଛି।"
+            "or-IN" -> "$name ଙ୍କର ଫୋନ୍ ଆସୁଛି。"
             "as-IN" -> "$name ফোন কৰিছে।"
             "ur-IN" -> "$name کی کال آ رہی ہے۔"
             "kok-IN" -> "$name चो फोन येता."
             "ne-IN", "ne-NP" -> "$name को फोन आउँदैछ।"
             "sd-IN" -> "$name جو فون اچي رهيو آهي."
-            "rathawi-IN" -> "$name न फोन आ रयो है।"
+            "rathawi-IN" -> "$name न फोन आ रयो है。"
             else -> "Incoming call from $name."
         }
     }
@@ -55,24 +51,15 @@ object AnnouncementManager {
             return
         }
 
-        if (isRinging) {
-            Log.d(TAG, "Already ringing, ignoring duplicate broadcast")
-            return
-        }
-        isRinging = true
-
         val callerName = getCallerName(context, phoneNumber)
         val nameToAnnounce = callerName ?: "Unknown"
         val languageStr = SettingsHelper.getLanguage(context)
         val announcementText = getLocalizedMessage(languageStr, nameToAnnounce)
 
-        speak(context, announcementText)
+        speak(context, announcementText, isTest = false)
     }
 
     fun stopAnnouncement() {
-        isRinging = false
-        announcementThread?.interrupt()
-        announcementThread = null
         if (tts != null && isSpeaking) {
             tts?.stop()
             isSpeaking = false
@@ -123,15 +110,14 @@ object AnnouncementManager {
             it.setSpeechRate(rate)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                // If "Announce only with Bluetooth" is ON, we must use USAGE_MEDIA to prevent
-                // Android from blasting the ringtone stream to both the speaker and the headset.
-                val forceBluetoothStream = SettingsHelper.isBluetoothOnly(context) && isBluetoothAudioConnected(context)
-                
-                val usage = if ((isTest && isBluetoothAudioConnected(context)) || forceBluetoothStream) {
+                // We must use USAGE_NOTIFICATION_RINGTONE for incoming calls.
+                // If we use USAGE_MEDIA during a real call, Android OS silences it completely!
+                val usage = if (isTest && isBluetoothAudioConnected(context)) {
                     android.media.AudioAttributes.USAGE_MEDIA
                 } else {
                     android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
                 }
+                
                 val audioAttributes = android.media.AudioAttributes.Builder()
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                     .setUsage(usage)
@@ -139,27 +125,19 @@ object AnnouncementManager {
                 it.setAudioAttributes(audioAttributes)
             }
             
+            isSpeaking = true
             if (isTest) {
                 it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
-                isSpeaking = true
             } else {
-                announcementThread?.interrupt()
-                announcementThread = Thread {
-                    try {
-                        var count = 0
-                        while (count < MAX_ANNOUNCEMENTS && isRinging) {
-                            it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_$count")
-                            isSpeaking = true
-                            count++
-                            if (count < MAX_ANNOUNCEMENTS && isRinging) {
-                                Thread.sleep(DELAY_BETWEEN_ANNOUNCEMENTS)
-                            }
-                        }
-                    } catch (e: InterruptedException) {
-                        Log.d(TAG, "Announcement thread interrupted")
-                    }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_0")
+                    it.playSilentUtterance(5000, TextToSpeech.QUEUE_ADD, "Smart Call Announce_silence_1")
+                    it.speak(text, TextToSpeech.QUEUE_ADD, null, "Smart Call Announce_announcement_1")
+                    it.playSilentUtterance(5000, TextToSpeech.QUEUE_ADD, "Smart Call Announce_silence_2")
+                    it.speak(text, TextToSpeech.QUEUE_ADD, null, "Smart Call Announce_announcement_2")
+                } else {
+                    it.speak("$text. $text. $text.", TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_old")
                 }
-                announcementThread?.start()
             }
         }
     }
