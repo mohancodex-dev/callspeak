@@ -1,0 +1,67 @@
+name: Flutter CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build_and_release:
+    name: Build & Release Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          
+      - name: Extract Version from pubspec.yaml
+        id: extract_version
+        run: |
+          # Read version from pubspec.yaml (e.g., version: 1.0.0+1)
+          VERSION=$(grep '^version: ' pubspec.yaml | awk '{print $2}' | tr -d '\r')
+          echo "PROJECT_VERSION=$VERSION" >> $GITHUB_ENV
+          
+          # Replace '+' with '-' for safe tag naming if needed, though '+' is usually fine.
+          SAFE_TAG_VERSION=$(echo $VERSION | sed 's/+/-/g')
+          echo "SAFE_TAG_VERSION=$SAFE_TAG_VERSION" >> $GITHUB_ENV
+          
+          echo "Extracted version: $VERSION"
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Run Flutter Analyze
+        run: flutter analyze
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.SAFE_TAG_VERSION }}
+          name: Release v${{ env.PROJECT_VERSION }}
+          body: "Automated release for version ${{ env.PROJECT_VERSION }}"
+          files: build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
