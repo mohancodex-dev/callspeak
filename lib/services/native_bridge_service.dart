@@ -44,4 +44,24 @@ class NativeBridgeService {
       return false;
     }
   }
+
+  Future<bool> requestPermissions() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('requestPermissions');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to request permissions: '${e.message}'.");
+      return false;
+    }
+  }
+
+  Future<bool> arePermissionsGranted() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('arePermissionsGranted');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to check permissions: '${e.message}'.");
+      return false;
+    }
+  }
 }

@@ -18,9 +18,38 @@ class MainActivity: FlutterActivity() {
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        checkAndRequestRequiredPermissions()
         if (SettingsHelper.isAnnouncementEnabled(this)) {
             startAnnouncerService()
         }
+    }
+
+    private fun checkAndRequestRequiredPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val permissions = mutableListOf<String>()
+            if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                permissions.add(android.Manifest.permission.READ_PHONE_STATE)
+            }
+            if (checkSelfPermission(android.Manifest.permission.READ_CALL_LOG) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                permissions.add(android.Manifest.permission.READ_CALL_LOG)
+            }
+            if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                permissions.add(android.Manifest.permission.READ_CONTACTS)
+            }
+            if (permissions.isNotEmpty()) {
+                requestPermissions(permissions.toTypedArray(), 1001)
+            }
+        }
+    }
+
+    private fun areRequiredPermissionsGranted(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val phone = checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val callLog = checkSelfPermission(android.Manifest.permission.READ_CALL_LOG) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val contacts = checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            return phone && callLog && contacts
+        }
+        return true
     }
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
@@ -42,6 +71,13 @@ class MainActivity: FlutterActivity() {
                 "stopService" -> {
                     stopAnnouncerService()
                     result.success(true)
+                }
+                "requestPermissions" -> {
+                    checkAndRequestRequiredPermissions()
+                    result.success(true)
+                }
+                "arePermissionsGranted" -> {
+                    result.success(areRequiredPermissionsGranted())
                 }
                 else -> {
                     result.notImplemented()

@@ -30,6 +30,8 @@ object AnnouncementManager {
     private var playbackCallback: AudioManager.AudioPlaybackCallback? = null
     private var registeredContext: Context? = null
     private var callStartTime = 0L
+    private var lastIncomingNumber: String? = null
+    private var lastAnnounceTime = 0L
 
     private fun getLocalizedMessage(languageStr: String, name: String): String {
         return when (languageStr) {
@@ -48,7 +50,7 @@ object AnnouncementManager {
             "kok-IN" -> "$name चो फोन येता."
             "ne-IN", "ne-NP" -> "$name को फोन आउँदैछ।"
             "sd-IN" -> "$name جو فون اچي رهيو آهي."
-            "rathawi-IN" -> "$name न फोन आ रयो है。"
+            "rathawi-IN" -> "$name न फोन आ रयो है।"
             else -> "Incoming call from $name."
         }
     }
@@ -64,8 +66,22 @@ object AnnouncementManager {
             return
         }
 
+        val now = System.currentTimeMillis()
+        // Deduplication / smart update check
+        if (isSpeaking && now - lastAnnounceTime < 4000) {
+            if (lastIncomingNumber.isNullOrEmpty() && !phoneNumber.isNullOrEmpty()) {
+                Log.d(TAG, "Updating announcement with newly resolved phone number: $phoneNumber")
+                stopAnnouncement()
+            } else {
+                Log.d(TAG, "Already announcing this call, skipping duplicate trigger")
+                return
+            }
+        }
+
+        lastIncomingNumber = phoneNumber
+        lastAnnounceTime = now
         isSilenced = false
-        callStartTime = System.currentTimeMillis()
+        callStartTime = now
         startSilenceListeners(context)
 
         val callerName = getCallerName(context, phoneNumber)
@@ -273,20 +289,73 @@ object AnnouncementManager {
 
     @SuppressLint("Range")
     private fun getCallerName(context: Context, phoneNumber: String?): String? {
-        if (phoneNumber.isNullOrEmpty()) return null
+        if (phoneNumber.isNullOrBlank()) return null
 
+        val trimmedNumber = phoneNumber.trim()
+
+        // Strategy 1: ContactsContract.PhoneLookup with raw number
         try {
-            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(trimmedNumber))
             val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
             
             context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    return cursor.getString(cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME))
+                    val name = cursor.getString(cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME))
+                    if (!name.isNullOrBlank()) {
+                        Log.d(TAG, "Contact found via PhoneLookup raw: $name")
+                        return name
+                    }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error looking up contact: ${e.message}")
+            Log.e(TAG, "Error looking up contact via PhoneLookup raw: ${e.message}")
         }
+
+        // Strategy 2: Clean digits (strip spaces, dashes, parentheses)
+        val digitsOnly = trimmedNumber.filter { it.isDigit() }
+        if (digitsOnly.isNotEmpty() && digitsOnly != trimmedNumber) {
+            try {
+                val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(digitsOnly))
+                val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val name = cursor.getString(cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME))
+                        if (!name.isNullOrBlank()) {
+                            Log.d(TAG, "Contact found via PhoneLookup digits: $name")
+                            return name
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error looking up contact via PhoneLookup digits: ${e.message}")
+            }
+        }
+
+        // Strategy 3: Query ContactsContract.CommonDataKinds.Phone with last 10 digits
+        // Critical for India and countries where numbers are stored without +91 or with 0 prefix
+        try {
+            val last10 = if (digitsOnly.length >= 10) digitsOnly.takeLast(10) else digitsOnly
+            if (last10.length >= 7) {
+                val phoneUri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val selection = "${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
+                val selectionArgs = arrayOf("%$last10%")
+
+                context.contentResolver.query(phoneUri, projection, selection, selectionArgs, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val name = cursor.getString(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))
+                        if (!name.isNullOrBlank()) {
+                            Log.d(TAG, "Contact found via CommonDataKinds.Phone: $name")
+                            return name
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error looking up contact via CommonDataKinds.Phone: ${e.message}")
+        }
+
+        Log.d(TAG, "No contact name found for number: $phoneNumber")
         return null
     }
 
