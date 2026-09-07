@@ -39,7 +39,7 @@ class CallReceiver : BroadcastReceiver() {
                 } finally {
                     if (state == TelephonyManager.EXTRA_STATE_RINGING) {
                         try {
-                            Thread.sleep(8000)
+                            Thread.sleep(20000)
                         } catch (e: InterruptedException) {
                             // Ignore
                         }

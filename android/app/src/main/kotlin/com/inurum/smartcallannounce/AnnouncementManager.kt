@@ -17,6 +17,33 @@ object AnnouncementManager {
     private const val TAG = "AnnouncementManager"
     private var tts: TextToSpeech? = null
     private var isSpeaking = false
+    private var handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var announcementRunnable: Runnable? = null
+    private var announcementCount = 0
+    private const val MAX_ANNOUNCEMENTS = 3
+    private const val DELAY_BETWEEN_ANNOUNCEMENTS = 6000L // Approx 6 seconds = 2 rings
+
+    private fun getLocalizedMessage(languageStr: String, name: String): String {
+        return when (languageStr) {
+            "hi-IN" -> "$name का फोन आ रहा है।"
+            "bn-IN" -> "$name ফোন করছেন।"
+            "te-IN" -> "$name నుండి కాల్ వస్తోంది."
+            "mr-IN" -> "$name यांचा फोन येत आहे."
+            "ta-IN" -> "$name அழைக்கிறார்."
+            "gu-IN" -> "$name નો ફોન આવી રહ્યો છે."
+            "kn-IN" -> "$name ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ."
+            "ml-IN" -> "$name വിളിക്കുന്നു."
+            "pa-IN" -> "$name ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
+            "or-IN" -> "$name ଙ୍କର ଫୋନ୍ ଆସୁଛି।"
+            "as-IN" -> "$name ফোন কৰিছে।"
+            "ur-IN" -> "$name کی کال آ رہی ہے۔"
+            "kok-IN" -> "$name चो फोन येता."
+            "ne-IN", "ne-NP" -> "$name को फोन आउँदैछ।"
+            "sd-IN" -> "$name جو فون اچي رهيو آهي."
+            "rathawi-IN" -> "$name न फोन आ रयो है।"
+            else -> "Incoming call from $name."
+        }
+    }
 
     fun handleIncomingCall(context: Context, phoneNumber: String?) {
         if (!SettingsHelper.isAnnouncementEnabled(context)) {
@@ -30,16 +57,16 @@ object AnnouncementManager {
         }
 
         val callerName = getCallerName(context, phoneNumber)
-        val announcementText = if (callerName != null) {
-            "Incoming call from $callerName"
-        } else {
-            "Incoming call from unknown number"
-        }
+        val nameToAnnounce = callerName ?: "Unknown"
+        val languageStr = SettingsHelper.getLanguage(context)
+        val announcementText = getLocalizedMessage(languageStr, nameToAnnounce)
 
         speak(context, announcementText)
     }
 
     fun stopAnnouncement() {
+        announcementRunnable?.let { handler.removeCallbacks(it) }
+        announcementRunnable = null
         if (tts != null && isSpeaking) {
             tts?.stop()
             isSpeaking = false
@@ -48,7 +75,17 @@ object AnnouncementManager {
     }
     
     fun testAnnouncement(context: Context) {
-        speak(context, "This is a test announcement from Smart Call Announce", isTest = true)
+        if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) {
+            Log.d(TAG, "Bluetooth only is ON, but no BT audio device connected. Test skipped.")
+            // Using a handler to show toast on main thread
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(context, "Bluetooth not connected!", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        val languageStr = SettingsHelper.getLanguage(context)
+        val announcementText = getLocalizedMessage(languageStr, "Test Caller")
+        speak(context, announcementText, isTest = true)
     }
 
     private fun speak(context: Context, text: String, isTest: Boolean = false) {
@@ -58,28 +95,29 @@ object AnnouncementManager {
         if (tts == null) {
             tts = TextToSpeech(context.applicationContext) { status ->
                 if (status == TextToSpeech.SUCCESS) {
-                    configureAndSpeak(text, languageStr, speechRate, isTest)
+                    configureAndSpeak(context, text, languageStr, speechRate, isTest)
                 } else {
                     Log.e(TAG, "TTS Initialization failed")
                 }
             }
         } else {
-            configureAndSpeak(text, languageStr, speechRate, isTest)
+            configureAndSpeak(context, text, languageStr, speechRate, isTest)
         }
     }
 
-    private fun configureAndSpeak(text: String, languageStr: String, rate: Float, isTest: Boolean = false) {
+    private fun configureAndSpeak(context: Context, text: String, languageStr: String, rate: Float, isTest: Boolean = false) {
         tts?.let {
-            val locale = Locale.forLanguageTag(languageStr)
+            val ttsLanguage = if (languageStr == "rathawi-IN") "hi-IN" else languageStr
+            val locale = Locale.forLanguageTag(ttsLanguage)
             val result = it.setLanguage(locale)
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.e(TAG, "Language not supported: $languageStr")
+                Log.e(TAG, "Language not supported: $ttsLanguage")
                 it.setLanguage(Locale.ENGLISH)
             }
             it.setSpeechRate(rate)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val usage = if (isTest) {
+                val usage = if (isTest && isBluetoothAudioConnected(context)) {
                     android.media.AudioAttributes.USAGE_MEDIA
                 } else {
                     android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
@@ -91,9 +129,27 @@ object AnnouncementManager {
                 it.setAudioAttributes(audioAttributes)
             }
             
-            val finalAnnouncement = if (isTest) text else "$text. $text. $text."
-            it.speak(finalAnnouncement, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
-            isSpeaking = true
+            if (isTest) {
+                it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
+                isSpeaking = true
+            } else {
+                announcementCount = 0
+                announcementRunnable?.let { r -> handler.removeCallbacks(r) }
+                
+                announcementRunnable = object : Runnable {
+                    override fun run() {
+                        if (announcementCount < MAX_ANNOUNCEMENTS) {
+                            it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_$announcementCount")
+                            isSpeaking = true
+                            announcementCount++
+                            if (announcementCount < MAX_ANNOUNCEMENTS) {
+                                handler.postDelayed(this, DELAY_BETWEEN_ANNOUNCEMENTS)
+                            }
+                        }
+                    }
+                }
+                handler.post(announcementRunnable!!)
+            }
         }
     }
 

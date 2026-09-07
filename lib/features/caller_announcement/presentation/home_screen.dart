@@ -137,9 +137,23 @@ class HomeScreen extends ConsumerWidget {
               trailing: DropdownButton<String>(
                 value: settings.language,
                 items: const [
-                  DropdownMenuItem(value: 'en-US', child: Text('English (US)')),
-                  DropdownMenuItem(value: 'en-GB', child: Text('English (UK)')),
                   DropdownMenuItem(value: 'hi-IN', child: Text('Hindi')),
+                  DropdownMenuItem(value: 'en-US', child: Text('English')),
+                  DropdownMenuItem(value: 'bn-IN', child: Text('Bengali')),
+                  DropdownMenuItem(value: 'te-IN', child: Text('Telugu')),
+                  DropdownMenuItem(value: 'mr-IN', child: Text('Marathi')),
+                  DropdownMenuItem(value: 'ta-IN', child: Text('Tamil')),
+                  DropdownMenuItem(value: 'gu-IN', child: Text('Gujarati')),
+                  DropdownMenuItem(value: 'kn-IN', child: Text('Kannada')),
+                  DropdownMenuItem(value: 'ml-IN', child: Text('Malayalam')),
+                  DropdownMenuItem(value: 'pa-IN', child: Text('Punjabi')),
+                  DropdownMenuItem(value: 'or-IN', child: Text('Odia')),
+                  DropdownMenuItem(value: 'as-IN', child: Text('Assamese')),
+                  DropdownMenuItem(value: 'ur-IN', child: Text('Urdu')),
+                  DropdownMenuItem(value: 'kok-IN', child: Text('Konkani')),
+                  DropdownMenuItem(value: 'ne-IN', child: Text('Nepali')),
+                  DropdownMenuItem(value: 'sd-IN', child: Text('Sindhi')),
+                  DropdownMenuItem(value: 'rathawi-IN', child: Text('Rathawi')),
                 ],
                 onChanged: (val) {
                   if (val != null) {
