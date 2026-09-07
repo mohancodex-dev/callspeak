@@ -117,7 +117,11 @@ object AnnouncementManager {
             it.setSpeechRate(rate)
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val usage = if (isTest && isBluetoothAudioConnected(context)) {
+                // If "Announce only with Bluetooth" is ON, we must use USAGE_MEDIA to prevent
+                // Android from blasting the ringtone stream to both the speaker and the headset.
+                val forceBluetoothStream = SettingsHelper.isBluetoothOnly(context) && isBluetoothAudioConnected(context)
+                
+                val usage = if ((isTest && isBluetoothAudioConnected(context)) || forceBluetoothStream) {
                     android.media.AudioAttributes.USAGE_MEDIA
                 } else {
                     android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
