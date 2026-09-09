@@ -1,6 +1,7 @@
 package com.inurum.smartcallannounce
 
 import android.annotation.SuppressLint
+import android.app.NotificationManager
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
@@ -12,11 +13,16 @@ import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.util.Log
+import android.widget.Toast
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.Locale
 
 object AnnouncementManager {
@@ -55,41 +61,224 @@ object AnnouncementManager {
         }
     }
 
+    data class ParsedContactRule(
+        val name: String,
+        val phoneNumber: String,
+        val isEnabled: Boolean,
+        val customText: String,
+        val language: String,
+        val volume: Float,
+        val speechRate: Float,
+        val repeatMode: String,
+        val bluetoothOnly: Boolean,
+        val isVip: Boolean
+    )
+
+    data class ParsedCategoryRule(
+        val isEnabled: Boolean,
+        val template: String,
+        val repeatMode: String,
+        val bluetoothOnly: Boolean,
+        val silentBehavior: String
+    )
+
+    private fun findContactRule(context: Context, phoneNumber: String?): ParsedContactRule? {
+        if (phoneNumber.isNullOrBlank()) return null
+        val jsonStr = SettingsHelper.getContactRulesJson(context) ?: return null
+        try {
+            val array = JSONArray(jsonStr)
+            val digitsIncoming = phoneNumber.filter { it.isDigit() }
+            val last10Incoming = if (digitsIncoming.length >= 10) digitsIncoming.takeLast(10) else digitsIncoming
+
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val ruleNumber = obj.optString("phoneNumber", "")
+                val digitsRule = ruleNumber.filter { it.isDigit() }
+                val last10Rule = if (digitsRule.length >= 10) digitsRule.takeLast(10) else digitsRule
+
+                val matches = (digitsIncoming.isNotEmpty() && digitsIncoming == digitsRule) ||
+                              (last10Incoming.isNotEmpty() && last10Incoming == last10Rule)
+
+                if (matches) {
+                    return ParsedContactRule(
+                        name = obj.optString("name", "Unknown"),
+                        phoneNumber = ruleNumber,
+                        isEnabled = obj.optBoolean("isEnabled", true),
+                        customText = obj.optString("customText", "{name} is calling"),
+                        language = obj.optString("language", "en-US"),
+                        volume = obj.optDouble("volume", 1.0).toFloat(),
+                        speechRate = obj.optDouble("speechRate", 1.0).toFloat(),
+                        repeatMode = obj.optString("repeatMode", "twice"),
+                        bluetoothOnly = obj.optBoolean("bluetoothOnly", false),
+                        isVip = obj.optBoolean("isVip", false)
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing contact rules: ${e.message}")
+        }
+        return null
+    }
+
+    private fun getCategoryRule(context: Context, key: String): ParsedCategoryRule? {
+        val jsonStr = SettingsHelper.getCategoryRulesJson(context) ?: return null
+        try {
+            val obj = JSONObject(jsonStr)
+            val catObj = obj.optJSONObject(key) ?: return null
+            return ParsedCategoryRule(
+                isEnabled = catObj.optBoolean("isEnabled", true),
+                template = catObj.optString("announcementTemplate", "{name} is calling"),
+                repeatMode = catObj.optString("repeatMode", "twice"),
+                bluetoothOnly = catObj.optBoolean("bluetoothOnly", false),
+                silentBehavior = catObj.optString("silentModeBehavior", "respect_silent")
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing category rules: ${e.message}")
+        }
+        return null
+    }
+
     fun handleIncomingCall(context: Context, phoneNumber: String?) {
         if (!SettingsHelper.isAnnouncementEnabled(context)) {
             Log.d(TAG, "Smart Call Announce is disabled")
             return
         }
 
+        val callerName = getCallerName(context, phoneNumber)
+        val nameToAnnounce = callerName ?: "Unknown"
+
+        // 1. Check for specific ContactRule
+        val contactRule = findContactRule(context, phoneNumber)
+        if (contactRule != null) {
+            Log.d(TAG, "Found contact rule for ${contactRule.name} (enabled=${contactRule.isEnabled})")
+            if (!contactRule.isEnabled) {
+                Log.d(TAG, "Announcement muted for contact ${contactRule.name}")
+                return
+            }
+
+            if (contactRule.bluetoothOnly && !isBluetoothAudioConnected(context)) {
+                Log.d(TAG, "Bluetooth only requirement not met for contact ${contactRule.name}")
+                return
+            }
+
+            if (!contactRule.isVip) {
+                if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) {
+                    Log.d(TAG, "Phone in Silent/Vibrate mode and contact is not VIP. Skipping.")
+                    return
+                }
+                if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) {
+                    Log.d(TAG, "Phone in DND mode and contact is not VIP. Skipping.")
+                    return
+                }
+            }
+
+            initCallAnnouncement(context, phoneNumber)
+            val customText = contactRule.customText
+                .replace("{name}", nameToAnnounce)
+                .replace("{number}", phoneNumber ?: "")
+            speak(
+                context = context,
+                text = customText,
+                languageStr = contactRule.language,
+                speechRate = contactRule.speechRate,
+                repeatMode = contactRule.repeatMode,
+                volume = contactRule.volume,
+                isTest = false
+            )
+            return
+        }
+
+        // 2. Check Category Rules
+        val isUnknownNumber = callerName.isNullOrBlank()
+        if (isUnknownNumber) {
+            val unknownRule = getCategoryRule(context, "unknownNumbers")
+            if (unknownRule != null) {
+                if (!unknownRule.isEnabled) {
+                    Log.d(TAG, "Unknown numbers announcement is disabled in category rules")
+                    return
+                }
+                if (unknownRule.bluetoothOnly && !isBluetoothAudioConnected(context)) {
+                    return
+                }
+                if (unknownRule.silentBehavior == "respect_silent") {
+                    if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) return
+                    if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) return
+                }
+                initCallAnnouncement(context, phoneNumber)
+                val text = unknownRule.template
+                    .replace("{name}", "Unknown")
+                    .replace("{number}", phoneNumber ?: "Unknown")
+                speak(
+                    context = context,
+                    text = text,
+                    repeatMode = unknownRule.repeatMode,
+                    isTest = false
+                )
+                return
+            }
+        } else {
+            val savedRule = getCategoryRule(context, "savedContacts")
+            if (savedRule != null) {
+                if (!savedRule.isEnabled) {
+                    Log.d(TAG, "Saved contacts announcement is disabled in category rules")
+                    return
+                }
+                if (savedRule.bluetoothOnly && !isBluetoothAudioConnected(context)) {
+                    return
+                }
+                if (savedRule.silentBehavior == "respect_silent") {
+                    if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) return
+                    if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) return
+                }
+                initCallAnnouncement(context, phoneNumber)
+                val text = savedRule.template
+                    .replace("{name}", nameToAnnounce)
+                    .replace("{number}", phoneNumber ?: "")
+                speak(
+                    context = context,
+                    text = text,
+                    repeatMode = savedRule.repeatMode,
+                    isTest = false
+                )
+                return
+            }
+        }
+
+        // 3. Fallback to Global Settings
         if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) {
             Log.d(TAG, "Bluetooth only is ON, but no BT audio device connected")
             return
         }
 
+        if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) {
+            Log.d(TAG, "Phone is in Silent/Vibrate mode and silenceInSilentMode is ON, skipping announcement")
+            return
+        }
+
+        if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) {
+            Log.d(TAG, "Phone is in DND mode and silenceInDndMode is ON, skipping announcement")
+            return
+        }
+
+        initCallAnnouncement(context, phoneNumber)
+        val languageStr = SettingsHelper.getLanguage(context)
+        val announcementText = getLocalizedMessage(languageStr, nameToAnnounce)
+        speak(context, announcementText, isTest = false)
+    }
+
+    private fun initCallAnnouncement(context: Context, phoneNumber: String?) {
         val now = System.currentTimeMillis()
-        // Deduplication / smart update check
         if (isSpeaking && now - lastAnnounceTime < 4000) {
             if (lastIncomingNumber.isNullOrEmpty() && !phoneNumber.isNullOrEmpty()) {
                 Log.d(TAG, "Updating announcement with newly resolved phone number: $phoneNumber")
                 stopAnnouncement()
-            } else {
-                Log.d(TAG, "Already announcing this call, skipping duplicate trigger")
-                return
             }
         }
-
         lastIncomingNumber = phoneNumber
         lastAnnounceTime = now
         isSilenced = false
         callStartTime = now
         startSilenceListeners(context)
-
-        val callerName = getCallerName(context, phoneNumber)
-        val nameToAnnounce = callerName ?: "Unknown"
-        val languageStr = SettingsHelper.getLanguage(context)
-        val announcementText = getLocalizedMessage(languageStr, nameToAnnounce)
-
-        speak(context, announcementText, isTest = false)
     }
 
     fun stopAnnouncement() {
@@ -209,8 +398,22 @@ object AnnouncementManager {
         if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) {
             Log.d(TAG, "Bluetooth only is ON, but no BT audio device connected. Test skipped.")
             // Using a handler to show toast on main thread
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(context, "Bluetooth not connected!", android.widget.Toast.LENGTH_SHORT).show()
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, "Bluetooth not connected!", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) {
+            Log.d(TAG, "Phone is in Silent/Vibrate mode. Test skipped.")
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, "Phone is in Silent/Vibrate mode!", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) {
+            Log.d(TAG, "Phone is in DND mode. Test skipped.")
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, "Phone is in Do Not Disturb (DND) mode!", Toast.LENGTH_SHORT).show()
             }
             return
         }
@@ -219,24 +422,52 @@ object AnnouncementManager {
         speak(context, announcementText, isTest = true)
     }
 
-    private fun speak(context: Context, text: String, isTest: Boolean = false) {
-        val languageStr = SettingsHelper.getLanguage(context)
-        val speechRate = SettingsHelper.getSpeechRate(context)
+    fun previewAnnouncement(context: Context, text: String, languageStr: String, rate: Float, volume: Float) {
+        speak(
+            context = context,
+            text = text,
+            languageStr = languageStr,
+            speechRate = rate,
+            repeatMode = "once",
+            volume = volume,
+            isTest = true
+        )
+    }
+
+    private fun speak(
+        context: Context,
+        text: String,
+        languageStr: String = "",
+        speechRate: Float = -1f,
+        repeatMode: String = "twice",
+        volume: Float = 1.0f,
+        isTest: Boolean = false
+    ) {
+        val effectiveLang = if (languageStr.isNotEmpty()) languageStr else SettingsHelper.getLanguage(context)
+        val effectiveRate = if (speechRate > 0f) speechRate else SettingsHelper.getSpeechRate(context)
 
         if (tts == null) {
             tts = TextToSpeech(context.applicationContext) { status ->
                 if (status == TextToSpeech.SUCCESS) {
-                    configureAndSpeak(context, text, languageStr, speechRate, isTest)
+                    configureAndSpeak(context, text, effectiveLang, effectiveRate, repeatMode, volume, isTest)
                 } else {
                     Log.e(TAG, "TTS Initialization failed")
                 }
             }
         } else {
-            configureAndSpeak(context, text, languageStr, speechRate, isTest)
+            configureAndSpeak(context, text, effectiveLang, effectiveRate, repeatMode, volume, isTest)
         }
     }
 
-    private fun configureAndSpeak(context: Context, text: String, languageStr: String, rate: Float, isTest: Boolean = false) {
+    private fun configureAndSpeak(
+        context: Context,
+        text: String,
+        languageStr: String,
+        rate: Float,
+        repeatMode: String = "twice",
+        volume: Float = 1.0f,
+        isTest: Boolean = false
+    ) {
         if (isSilenced) {
             Log.d(TAG, "Announcement is silenced, cancelling speech")
             return
@@ -270,18 +501,28 @@ object AnnouncementManager {
                 it.setAudioAttributes(audioAttributes)
             }
             
+            val params = Bundle().apply {
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f))
+            }
+
             isSpeaking = true
-            if (isTest) {
-                it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
-            } else {
+            if (isTest || repeatMode == "once") {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_0")
-                    it.playSilentUtterance(5000, TextToSpeech.QUEUE_ADD, "Smart Call Announce_silence_1")
-                    it.speak(text, TextToSpeech.QUEUE_ADD, null, "Smart Call Announce_announcement_1")
-                    it.playSilentUtterance(5000, TextToSpeech.QUEUE_ADD, "Smart Call Announce_silence_2")
-                    it.speak(text, TextToSpeech.QUEUE_ADD, null, "Smart Call Announce_announcement_2")
+                    it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "Smart Call Announce_announcement")
                 } else {
-                    it.speak("$text. $text. $text.", TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_old")
+                    it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement")
+                }
+            } else {
+                val times = if (repeatMode == "until_answered") 5 else 2
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "Smart Call Announce_announcement_0")
+                    for (i in 1 until times) {
+                        it.playSilentUtterance(4000, TextToSpeech.QUEUE_ADD, "Smart Call Announce_silence_$i")
+                        it.speak(text, TextToSpeech.QUEUE_ADD, params, "Smart Call Announce_announcement_$i")
+                    }
+                } else {
+                    val repeated = List(times) { text }.joinToString(". ")
+                    it.speak(repeated, TextToSpeech.QUEUE_FLUSH, null, "Smart Call Announce_announcement_old")
                 }
             }
         }
@@ -381,6 +622,42 @@ object AnnouncementManager {
                 return a2dp || headset
             }
         }
+        return false
+    }
+
+    fun isSilentOrVibrate(context: Context): Boolean {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        val ringerMode = audioManager.ringerMode
+        return ringerMode == AudioManager.RINGER_MODE_SILENT || ringerMode == AudioManager.RINGER_MODE_VIBRATE
+    }
+
+    fun isDndActive(context: Context): Boolean {
+        // 1. NotificationManager check (Android M / 23+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                if (notificationManager != null) {
+                    val filter = notificationManager.currentInterruptionFilter
+                    if (filter != NotificationManager.INTERRUPTION_FILTER_ALL &&
+                        filter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN) {
+                        return true
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking interruption filter: ${e.message}")
+            }
+        }
+
+        // 2. Fallback to Settings.Global zen_mode
+        try {
+            val zenMode = Settings.Global.getInt(context.contentResolver, "zen_mode", 0)
+            if (zenMode != 0) {
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking zen_mode: ${e.message}")
+        }
+
         return false
     }
 }

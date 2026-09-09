@@ -6,6 +6,7 @@ import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
+import android.provider.ContactsContract
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -79,6 +80,18 @@ class MainActivity: FlutterActivity() {
                 "arePermissionsGranted" -> {
                     result.success(areRequiredPermissionsGranted())
                 }
+                "getContacts" -> {
+                    val contacts = getDeviceContacts()
+                    result.success(contacts)
+                }
+                "previewAnnouncement" -> {
+                    val text = call.argument<String>("text") ?: "Test Call"
+                    val language = call.argument<String>("language") ?: "en-US"
+                    val speechRate = (call.argument<Double>("speechRate") ?: 1.0).toFloat()
+                    val volume = (call.argument<Double>("volume") ?: 1.0).toFloat()
+                    AnnouncementManager.previewAnnouncement(context, text, language, speechRate, volume)
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -138,5 +151,54 @@ class MainActivity: FlutterActivity() {
         val serviceIntent = android.content.Intent(this, CallAnnounceService::class.java)
         serviceIntent.action = "STOP_SERVICE"
         startService(serviceIntent)
+    }
+
+    private fun getDeviceContacts(): List<Map<String, String>> {
+        val contactList = mutableListOf<Map<String, String>>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return contactList
+        }
+
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone._ID,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        )
+
+        try {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                null,
+                null,
+                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone._ID)
+                val nameCol = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numCol = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+
+                val seenNumbers = mutableSetOf<String>()
+                while (cursor.moveToNext() && contactList.size < 500) {
+                    val id = if (idCol >= 0) cursor.getString(idCol) ?: "" else ""
+                    val name = if (nameCol >= 0) cursor.getString(nameCol) ?: "Unknown" else "Unknown"
+                    val number = if (numCol >= 0) cursor.getString(numCol) ?: "" else ""
+
+                    val norm = number.filter { it.isDigit() }
+                    if (norm.length >= 7 && seenNumbers.add(norm)) {
+                        contactList.add(
+                            mapOf(
+                                "id" to id,
+                                "name" to name,
+                                "number" to number
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error loading contacts: ${e.message}")
+        }
+        return contactList
     }
 }

@@ -22,6 +22,14 @@ object SettingsHelper {
         return getPrefs(context).getBoolean("flutter.alsoAnnounceOnSpeaker", false)
     }
 
+    fun isSilenceInSilentMode(context: Context): Boolean {
+        return getPrefs(context).getBoolean("flutter.silenceInSilentMode", true)
+    }
+
+    fun isSilenceInDndMode(context: Context): Boolean {
+        return getPrefs(context).getBoolean("flutter.silenceInDndMode", true)
+    }
+
     fun getLanguage(context: Context): String {
         return getPrefs(context).getString("flutter.language", "en-US") ?: "en-US"
     }
@@ -38,5 +46,17 @@ object SettingsHelper {
         // To be safe, let's just store speechRate as String in Flutter and parse it in Kotlin.
         val rateStr = getPrefs(context).getString("flutter.speechRateStr", "1.0")
         return rateStr?.toFloatOrNull() ?: 1.0f
+    }
+
+    fun getContactRulesJson(context: Context): String? {
+        return getPrefs(context).getString("flutter.contact_rules_json", null)
+    }
+
+    fun getCategoryRulesJson(context: Context): String? {
+        return getPrefs(context).getString("flutter.category_rules_json", null)
+    }
+
+    fun getSmartFeaturesJson(context: Context): String? {
+        return getPrefs(context).getString("flutter.smart_features_json", null)
     }
 }
