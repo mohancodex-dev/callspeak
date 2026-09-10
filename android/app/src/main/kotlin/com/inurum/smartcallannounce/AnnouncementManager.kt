@@ -8,7 +8,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.net.Uri
@@ -16,6 +18,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
@@ -25,6 +28,7 @@ import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 object AnnouncementManager {
     private const val TAG = "AnnouncementManager"
@@ -37,8 +41,15 @@ object AnnouncementManager {
 
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
+    private var isTtsInitializing = false
+    private val pendingTtsCallbacks = mutableListOf<() -> Unit>()
+
     private var isSpeaking = false
     private var isSilenced = false
+
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     var onAnnouncementStoppedListener: (() -> Unit)? = null
     private var silenceReceiver: BroadcastReceiver? = null
@@ -54,34 +65,156 @@ object AnnouncementManager {
     private var pendingUnknownAnnouncementRunnable: Runnable? = null
     private var pendingSilenceStopRunnable: Runnable? = null
 
-    fun initTts(context: Context, onReady: (() -> Unit)? = null) {
-        if (tts == null) {
-            tts = TextToSpeech(context.applicationContext) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    isTtsReady = true
-                    Log.d(TAG, "TextToSpeech initialized successfully")
-                    tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                        override fun onStart(utteranceId: String?) {
-                            isSpeaking = true
-                        }
+    private val contactCache = ConcurrentHashMap<String, String>()
 
-                        override fun onDone(utteranceId: String?) {
-                            isSpeaking = false
-                        }
-
-                        override fun onError(utteranceId: String?) {
-                            isSpeaking = false
-                            Log.e(TAG, "TTS Utterance error for: $utteranceId")
-                        }
-                    })
-                    onReady?.invoke()
-                } else {
-                    isTtsReady = false
-                    Log.e(TAG, "TextToSpeech initialization failed with status $status")
+    fun acquireWakeLock(context: Context) {
+        try {
+            if (wakeLock == null) {
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "SmartCallAnnounce::CallWakeLock"
+                ).apply {
+                    setReferenceCounted(false)
                 }
             }
-        } else if (isTtsReady) {
-            onReady?.invoke()
+            wakeLock?.acquire(45000L) // 45s safety timeout for ringing call
+            Log.d(TAG, "WakeLock acquired")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error acquiring WakeLock: ${e.message}")
+        }
+    }
+
+    fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.d(TAG, "WakeLock released")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing WakeLock: ${e.message}")
+        }
+    }
+
+    fun initTts(context: Context, onReady: (() -> Unit)? = null) {
+        val appContext = context.applicationContext
+
+        mainHandler.post {
+            if (onReady != null) {
+                if (isTtsReady && tts != null) {
+                    onReady.invoke()
+                    return@post
+                } else {
+                    pendingTtsCallbacks.add(onReady)
+                }
+            }
+
+            if (isTtsInitializing) {
+                Log.d(TAG, "TTS initialization already in progress, callback queued")
+                return@post
+            }
+
+            isTtsInitializing = true
+            Log.d(TAG, "Starting TextToSpeech initialization...")
+
+            try {
+                tts = TextToSpeech(appContext) { status ->
+                    mainHandler.post {
+                        isTtsInitializing = false
+                        if (status == TextToSpeech.SUCCESS) {
+                            isTtsReady = true
+                            Log.d(TAG, "TextToSpeech initialized successfully")
+
+                            // Pre-load user configured language into RAM to eliminate first-call voice model loading delay
+                            try {
+                                val preferredLang = SettingsHelper.getLanguage(appContext)
+                                val ttsLang = if (preferredLang == "rathawi-IN") "hi-IN" else preferredLang
+                                tts?.language = Locale.forLanguageTag(ttsLang)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to pre-set language in initTts: ${e.message}")
+                            }
+
+                            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                                override fun onStart(utteranceId: String?) {
+                                    isSpeaking = true
+                                    Log.d(TAG, "TTS utterance started: $utteranceId")
+                                }
+
+                                override fun onDone(utteranceId: String?) {
+                                    isSpeaking = false
+                                    Log.d(TAG, "TTS utterance finished: $utteranceId")
+                                    if (utteranceId?.contains("final") == true || utteranceId == "SmartCallAnnounce_0") {
+                                        abandonAudioFocus()
+                                    }
+                                }
+
+                                override fun onError(utteranceId: String?) {
+                                    isSpeaking = false
+                                    abandonAudioFocus()
+                                    Log.e(TAG, "TTS utterance error: $utteranceId")
+                                }
+                            })
+
+                            val callbacks = ArrayList(pendingTtsCallbacks)
+                            pendingTtsCallbacks.clear()
+                            callbacks.forEach { it.invoke() }
+                        } else {
+                            isTtsReady = false
+                            pendingTtsCallbacks.clear()
+                            Log.e(TAG, "TextToSpeech initialization failed with status $status")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                isTtsInitializing = false
+                isTtsReady = false
+                pendingTtsCallbacks.clear()
+                Log.e(TAG, "Exception initializing TextToSpeech: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun requestAudioFocus(context: Context): Boolean {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        audioManager = am
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(playbackAttrs)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { /* no-op */ }
+                    .build()
+                audioFocusRequest = request
+                am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_RING,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+                ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting audio focus: ${e.message}")
+            false
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+                audioFocusRequest = null
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error abandoning audio focus: ${e.message}")
         }
     }
 
@@ -96,7 +229,7 @@ object AnnouncementManager {
             "kn-IN" -> "$name ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ."
             "ml-IN" -> "$name വിളിക്കുന്നു."
             "pa-IN" -> "$name ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
-            "or-IN" -> "$name ଙ୍କର ଫୋନ୍ ଆସୁଛି。"
+            "or-IN" -> "$name ଙ୍କର ଫୋନ୍ ଆସୁଛି।"
             "as-IN" -> "$name ফোন কৰিছে।"
             "ur-IN" -> "$name کی کال آ رہی ہے۔"
             "kok-IN" -> "$name चो फोन येता."
@@ -186,11 +319,13 @@ object AnnouncementManager {
 
     fun handleIncomingCall(context: Context, phoneNumber: String?) {
         if (!SettingsHelper.isAnnouncementEnabled(context)) {
-            Log.d(TAG, "Smart Call Announce is disabled")
+            Log.d(TAG, "Smart Call Announce is disabled in settings")
             return
         }
 
         val appContext = context.applicationContext
+        acquireWakeLock(appContext)
+
         mainHandler.post {
             processIncomingCallOnMainThread(appContext, phoneNumber)
         }
@@ -224,8 +359,7 @@ object AnnouncementManager {
         currentCallState = CallState.RINGING
 
         if (!rawNumber.isNullOrEmpty()) {
-            // Concrete phone number available!
-            // Cancel any pending "Unknown" announcement timer immediately
+            // Concrete phone number available immediately!
             pendingUnknownAnnouncementRunnable?.let {
                 mainHandler.removeCallbacks(it)
                 pendingUnknownAnnouncementRunnable = null
@@ -235,10 +369,9 @@ object AnnouncementManager {
             startCallAnnouncement(context, rawNumber)
         } else {
             // Phone number is not yet available in this broadcast.
-            // DO NOT announce "Unknown" immediately!
-            // Wait 600ms for CallScreeningService or subsequent PHONE_STATE broadcast to deliver the number.
+            // Wait up to 800ms for CallScreeningService or subsequent PHONE_STATE broadcast to deliver the number.
             if (pendingUnknownAnnouncementRunnable == null && !isAnnouncingCall) {
-                Log.d(TAG, "Number is not yet available. Waiting 600ms for caller ID to resolve before assuming Unknown...")
+                Log.d(TAG, "Number is not yet available. Waiting 800ms for caller ID to resolve before assuming Unknown...")
                 pendingUnknownAnnouncementRunnable = Runnable {
                     pendingUnknownAnnouncementRunnable = null
                     if (currentCallState == CallState.RINGING && activeCallNumber.isNullOrEmpty() && !isAnnouncingCall) {
@@ -246,7 +379,7 @@ object AnnouncementManager {
                         startCallAnnouncement(context, null)
                     }
                 }
-                mainHandler.postDelayed(pendingUnknownAnnouncementRunnable!!, 600)
+                mainHandler.postDelayed(pendingUnknownAnnouncementRunnable!!, 800)
             }
         }
     }
@@ -396,19 +529,28 @@ object AnnouncementManager {
     fun stopAnnouncement() {
         isSilenced = true
         isAnnouncingCall = false
-        if (tts != null && isSpeaking) {
-            try {
-                tts?.stop()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error stopping TTS: ${e.message}")
-            }
-            isSpeaking = false
-            Log.d(TAG, "Announcement stopped")
+
+        // Unconditionally stop TTS to flush all queued utterances immediately
+        try {
+            tts?.stop()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping TTS: ${e.message}")
         }
+        isSpeaking = false
+        Log.d(TAG, "Announcement stopped and TTS flushed")
+
+        abandonAudioFocus()
+        releaseWakeLock()
+
         pendingSilenceStopRunnable?.let {
             mainHandler.removeCallbacks(it)
             pendingSilenceStopRunnable = null
         }
+        pendingUnknownAnnouncementRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingUnknownAnnouncementRunnable = null
+        }
+
         stopSilenceListeners()
         onAnnouncementStoppedListener?.invoke()
     }
@@ -421,7 +563,6 @@ object AnnouncementManager {
 
         // 1. AudioPlaybackCallback (Android 8.0+)
         // Detects when the user silences the incoming call (e.g. presses volume/power button).
-        // Note: Ringtones have 1.5s silent intervals between ring cycles; we debounce to avoid false stops!
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioManager != null) {
             var wasSystemRingtoneActive = false
             playbackCallback = object : AudioManager.AudioPlaybackCallback() {
@@ -433,8 +574,8 @@ object AnnouncementManager {
                     if (configs != null) {
                         for (config in configs) {
                             val attrs = config.audioAttributes
-                            if (attrs.usage == android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE &&
-                                attrs.contentType != android.media.AudioAttributes.CONTENT_TYPE_SPEECH) {
+                            if (attrs.usage == AudioAttributes.USAGE_NOTIFICATION_RINGTONE &&
+                                attrs.contentType != AudioAttributes.CONTENT_TYPE_SPEECH) {
                                 hasSystemRingtoneNow = true
                                 break
                             }
@@ -443,22 +584,22 @@ object AnnouncementManager {
 
                     if (hasSystemRingtoneNow) {
                         wasSystemRingtoneActive = true
-                        // Ringtone is active or resumed; cancel any scheduled silence stop
+                        // Ringtone is active or resumed; cancel any pending silence stop
                         pendingSilenceStopRunnable?.let {
                             mainHandler.removeCallbacks(it)
                             pendingSilenceStopRunnable = null
                         }
                     } else if (wasSystemRingtoneActive) {
-                        // Ringtone paused. Debounce for 3500ms to differentiate between loop pauses and user muting
+                        // Ringtone paused. Debounce for 4500ms to allow slow loop gaps without false stops
                         if (pendingSilenceStopRunnable == null) {
                             pendingSilenceStopRunnable = Runnable {
                                 pendingSilenceStopRunnable = null
                                 if (currentCallState == CallState.RINGING && !isSilenced) {
-                                    Log.d(TAG, "System ringtone stopped for > 3.5s by user. Silencing announcement.")
+                                    Log.d(TAG, "System ringtone stopped for > 4.5s by user. Silencing announcement.")
                                     stopAnnouncement()
                                 }
                             }
-                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 3500)
+                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 4500)
                         }
                     }
                 }
@@ -474,32 +615,30 @@ object AnnouncementManager {
             }
         }
 
-        // 2. BroadcastReceiver for hardware volume changes and screen off (power button)
+        // 2. BroadcastReceiver for explicit ringer mode changes
+        // NOTE: We deliberately do NOT listen to VOLUME_CHANGED_ACTION or ACTION_SCREEN_OFF here!
+        // VOLUME_CHANGED_ACTION fires on normal ascending ringtone / stream volume ramping and falsely kills speech.
+        // ACTION_SCREEN_OFF fires when phone is placed in pocket or proximity sensor activates.
         silenceReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 if (isSilenced) return
                 val action = intent?.action ?: return
 
-                if (action == Intent.ACTION_SCREEN_OFF) {
-                    Log.d(TAG, "Screen off detected (power button pressed). Silencing announcement.")
-                    stopAnnouncement()
-                    return
-                }
-
-                // Ignore volume broadcasts that occur during call setup audio stream adjustments (< 2500ms)
-                if (System.currentTimeMillis() - callStartTime < 2500) return
-
-                if (action == "android.media.VOLUME_CHANGED_ACTION" || action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
-                    Log.d(TAG, "Silence event detected after warmup: $action")
-                    stopAnnouncement()
+                if (action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
+                    val am = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    val mode = am?.ringerMode
+                    if (mode == AudioManager.RINGER_MODE_SILENT || mode == AudioManager.RINGER_MODE_VIBRATE) {
+                        if (SettingsHelper.isSilenceInSilentMode(appContext)) {
+                            Log.d(TAG, "Ringer mode changed to silent/vibrate by user. Silencing announcement.")
+                            stopAnnouncement()
+                        }
+                    }
                 }
             }
         }
 
         val filter = IntentFilter().apply {
-            addAction("android.media.VOLUME_CHANGED_ACTION")
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
-            addAction(Intent.ACTION_SCREEN_OFF)
         }
 
         try {
@@ -523,10 +662,10 @@ object AnnouncementManager {
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 playbackCallback?.let {
                     try {
-                        audioManager?.unregisterAudioPlaybackCallback(it)
+                        am?.unregisterAudioPlaybackCallback(it)
                     } catch (e: Exception) {
                         // Ignore
                     }
@@ -612,6 +751,10 @@ object AnnouncementManager {
             Log.d(TAG, "Announcement is silenced, cancelling speech")
             return
         }
+
+        // Request audio focus with ducking so the incoming ringtone lowers in volume while speech is announced
+        requestAudioFocus(context)
+
         tts?.let {
             val ttsLanguage = if (languageStr == "rathawi-IN") "hi-IN" else languageStr
             val locale = Locale.forLanguageTag(ttsLanguage)
@@ -628,14 +771,14 @@ object AnnouncementManager {
 
                 val usage = if (isBtConnected && !alsoSpeaker) {
                     // Route strictly to Bluetooth headset; internal phone speaker stays silent
-                    android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION
+                    AudioAttributes.USAGE_VOICE_COMMUNICATION
                 } else {
                     // Ringtone stream routes to phone speaker (and also Bluetooth if connected and alsoSpeaker is true)
-                    android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+                    AudioAttributes.USAGE_NOTIFICATION_RINGTONE
                 }
 
-                val audioAttributes = android.media.AudioAttributes.Builder()
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                val audioAttributes = AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .setUsage(usage)
                     .build()
                 it.setAudioAttributes(audioAttributes)
@@ -646,19 +789,23 @@ object AnnouncementManager {
             }
 
             isSpeaking = true
+
             if (isTest || repeatMode == "once") {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SmartCallAnnounce_0")
+                    it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SmartCallAnnounce_final_0")
                 } else {
                     it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_0")
                 }
             } else {
                 val times = if (repeatMode == "until_answered") 6 else 2
+                val finalIndex = times - 1
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SmartCallAnnounce_0")
                     for (i in 1 until times) {
-                        it.playSilentUtterance(3500, TextToSpeech.QUEUE_ADD, "SmartCallAnnounce_silence_$i")
-                        it.speak(text, TextToSpeech.QUEUE_ADD, params, "SmartCallAnnounce_$i")
+                        it.playSilentUtterance(3000, TextToSpeech.QUEUE_ADD, "SmartCallAnnounce_silence_$i")
+                        val utteranceId = if (i == finalIndex) "SmartCallAnnounce_final_$i" else "SmartCallAnnounce_$i"
+                        it.speak(text, TextToSpeech.QUEUE_ADD, params, utteranceId)
                     }
                 } else {
                     val repeated = List(times) { text }.joinToString(". ")
@@ -706,13 +853,16 @@ object AnnouncementManager {
     @SuppressLint("Range")
     private fun getCallerName(context: Context, phoneNumber: String?): String? {
         if (phoneNumber.isNullOrBlank()) return null
+        val trimmedNumber = phoneNumber.trim()
+
+        // Fast memory cache check (0ms latency for repeated calls)
+        contactCache[trimmedNumber]?.let { return it }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
             context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG, "READ_CONTACTS permission not granted")
             return null
         }
-
-        val trimmedNumber = phoneNumber.trim()
 
         // Strategy 1: ContactsContract.PhoneLookup with raw number
         try {
@@ -726,6 +876,7 @@ object AnnouncementManager {
                         val name = cursor.getString(nameIdx)
                         if (!name.isNullOrBlank()) {
                             Log.d(TAG, "Contact found via PhoneLookup raw: $name")
+                            contactCache[trimmedNumber] = name
                             return name
                         }
                     }
@@ -748,6 +899,7 @@ object AnnouncementManager {
                             val name = cursor.getString(nameIdx)
                             if (!name.isNullOrBlank()) {
                                 Log.d(TAG, "Contact found via PhoneLookup digits: $name")
+                                contactCache[trimmedNumber] = name
                                 return name
                             }
                         }
@@ -775,6 +927,7 @@ object AnnouncementManager {
                             val name = cursor.getString(nameIdx)
                             if (!name.isNullOrBlank()) {
                                 Log.d(TAG, "Contact found via CommonDataKinds.Phone: $name")
+                                contactCache[trimmedNumber] = name
                                 return name
                             }
                         }

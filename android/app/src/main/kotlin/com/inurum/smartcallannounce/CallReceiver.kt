@@ -23,6 +23,7 @@ class CallReceiver : BroadcastReceiver() {
             val appContext = context.applicationContext
             when (state) {
                 TelephonyManager.EXTRA_STATE_RINGING -> {
+                    AnnouncementManager.acquireWakeLock(appContext)
                     AnnouncementManager.handleIncomingCall(appContext, incomingNumber)
                 }
                 TelephonyManager.EXTRA_STATE_OFFHOOK, 
