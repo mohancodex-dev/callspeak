@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.IBinder
 import android.telephony.TelephonyManager
+import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 
 class CallAnnounceService : Service() {
@@ -17,6 +18,7 @@ class CallAnnounceService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        AnnouncementManager.initTts(this)
         createNotificationChannel()
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -28,7 +30,11 @@ class CallAnnounceService : Service() {
             .build()
             
         try {
-            startForeground(NOTIFICATION_ID, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALLS)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }

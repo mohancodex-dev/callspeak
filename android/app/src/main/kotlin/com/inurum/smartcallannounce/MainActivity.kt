@@ -19,6 +19,7 @@ class MainActivity: FlutterActivity() {
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        AnnouncementManager.initTts(this)
         checkAndRequestRequiredPermissions()
         if (SettingsHelper.isAnnouncementEnabled(this)) {
             startAnnouncerService()

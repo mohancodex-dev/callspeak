@@ -17,46 +17,20 @@ class CallReceiver : BroadcastReceiver() {
         
         if (intent.action == TelephonyManager.ACTION_PHONE_STATE_CHANGED) {
             val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+            val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+            Log.d(TAG, "Phone state changed: $state, incoming number: $incomingNumber")
             
-            val pendingResult = goAsync()
-            
-            var ringingThread: Thread? = null
-            ringingThread = Thread {
-                AnnouncementManager.onAnnouncementStoppedListener = {
-                    try {
-                        ringingThread?.interrupt()
-                    } catch (e: Exception) {
-                        // Ignore
-                    }
+            val appContext = context.applicationContext
+            when (state) {
+                TelephonyManager.EXTRA_STATE_RINGING -> {
+                    AnnouncementManager.handleIncomingCall(appContext, incomingNumber)
                 }
-                try {
-                    when (state) {
-                        TelephonyManager.EXTRA_STATE_RINGING -> {
-                            val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-                            Log.d(TAG, "Ringing")
-                            AnnouncementManager.handleIncomingCall(context, incomingNumber)
-                        }
-                        TelephonyManager.EXTRA_STATE_OFFHOOK, 
-                        TelephonyManager.EXTRA_STATE_IDLE -> {
-                            Log.d(TAG, "State changed to $state, stopping announcement")
-                            AnnouncementManager.stopAnnouncement()
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in CallReceiver", e)
-                } finally {
-                    if (state == TelephonyManager.EXTRA_STATE_RINGING) {
-                        try {
-                            Thread.sleep(20000)
-                        } catch (e: InterruptedException) {
-                            Log.d(TAG, "Ringing thread sleep interrupted early")
-                        }
-                    }
-                    AnnouncementManager.onAnnouncementStoppedListener = null
-                    pendingResult.finish()
+                TelephonyManager.EXTRA_STATE_OFFHOOK, 
+                TelephonyManager.EXTRA_STATE_IDLE -> {
+                    Log.d(TAG, "State changed to $state, notifying onCallEnded")
+                    AnnouncementManager.onCallEnded(appContext)
                 }
             }
-            ringingThread.start()
         }
     }
 }
