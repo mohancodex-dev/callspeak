@@ -46,7 +46,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
     _language = widget.contact.language;
     _speechRate = widget.contact.speechRate;
     _volume = widget.contact.volume;
-    _repeatMode = widget.contact.repeatMode;
+    _repeatMode = widget.contact.repeatMode == 'twice' ? 'three_times' : widget.contact.repeatMode;
     _bluetoothOnly = widget.contact.bluetoothOnly;
     _isVip = widget.contact.isVip;
     _relationshipTag = widget.contact.relationshipTag;
@@ -326,11 +326,12 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                     const SizedBox(height: 12),
                     SegmentedButton<String>(
                       segments: const [
-                        ButtonSegment(value: 'once', label: Text('Once')),
-                        ButtonSegment(value: 'twice', label: Text('Twice')),
-                        ButtonSegment(value: 'until_answered', label: Text('Continuous')),
+                        ButtonSegment(value: 'once', label: Text('1x')),
+                        ButtonSegment(value: 'two_times', label: Text('2x')),
+                        ButtonSegment(value: 'three_times', label: Text('3x')),
+                        ButtonSegment(value: 'until_answered', label: Text('Repeat')),
                       ],
-                      selected: {_repeatMode},
+                      selected: {_repeatMode == 'twice' ? 'three_times' : _repeatMode},
                       onSelectionChanged: (newSelection) {
                         setState(() => _repeatMode = newSelection.first);
                       },

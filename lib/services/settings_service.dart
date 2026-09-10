@@ -9,9 +9,15 @@ class SettingsService {
   static const String keySilenceInDndMode = 'silenceInDndMode';
   static const String keyLanguage = 'language';
   static const String keySpeechRate = 'speechRateStr';
+  static const String keyRepeatMode = 'repeatMode';
 
   Future<CallSettings> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final savedRepeat = prefs.getString(keyRepeatMode);
+    final repeatMode = (savedRepeat == null || savedRepeat.isEmpty || savedRepeat == 'twice')
+        ? 'three_times'
+        : savedRepeat;
+
     return CallSettings(
       announcementEnabled: prefs.getBool(keyAnnouncementEnabled) ?? false,
       announceOnlyWithBluetooth: prefs.getBool(keyAnnounceOnlyWithBluetooth) ?? false,
@@ -20,6 +26,7 @@ class SettingsService {
       silenceInDndMode: prefs.getBool(keySilenceInDndMode) ?? true,
       language: prefs.getString(keyLanguage) ?? 'en-US',
       speechRate: double.tryParse(prefs.getString(keySpeechRate) ?? '1.0') ?? 1.0,
+      repeatMode: repeatMode,
     );
   }
 
@@ -32,5 +39,6 @@ class SettingsService {
     await prefs.setBool(keySilenceInDndMode, settings.silenceInDndMode);
     await prefs.setString(keyLanguage, settings.language);
     await prefs.setString(keySpeechRate, settings.speechRate.toString());
+    await prefs.setString(keyRepeatMode, settings.repeatMode);
   }
 }

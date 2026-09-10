@@ -59,4 +59,9 @@ object SettingsHelper {
     fun getSmartFeaturesJson(context: Context): String? {
         return getPrefs(context).getString("flutter.smart_features_json", null)
     }
+
+    fun getRepeatMode(context: Context): String {
+        val mode = getPrefs(context).getString("flutter.repeatMode", "three_times") ?: "three_times"
+        return if (mode == "twice") "three_times" else mode
+    }
 }

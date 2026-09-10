@@ -143,7 +143,7 @@ object AnnouncementManager {
                                 override fun onDone(utteranceId: String?) {
                                     isSpeaking = false
                                     Log.d(TAG, "TTS utterance finished: $utteranceId")
-                                    if (utteranceId?.contains("final") == true || utteranceId == "SmartCallAnnounce_0") {
+                                    if (utteranceId?.contains("final") == true || utteranceId == "SmartCallAnnounce_final_old" || utteranceId == "SmartCallAnnounce_old") {
                                         abandonAudioFocus()
                                     }
                                 }
@@ -287,7 +287,7 @@ object AnnouncementManager {
                         language = obj.optString("language", "en-US"),
                         volume = obj.optDouble("volume", 1.0).toFloat(),
                         speechRate = obj.optDouble("speechRate", 1.0).toFloat(),
-                        repeatMode = obj.optString("repeatMode", "twice"),
+                        repeatMode = obj.optString("repeatMode", "three_times").let { if (it == "twice") "three_times" else it },
                         bluetoothOnly = obj.optBoolean("bluetoothOnly", false),
                         isVip = obj.optBoolean("isVip", false)
                     )
@@ -307,7 +307,7 @@ object AnnouncementManager {
             return ParsedCategoryRule(
                 isEnabled = catObj.optBoolean("isEnabled", true),
                 template = catObj.optString("announcementTemplate", "{name} is calling"),
-                repeatMode = catObj.optString("repeatMode", "twice"),
+                repeatMode = catObj.optString("repeatMode", "three_times").let { if (it == "twice") "three_times" else it },
                 bluetoothOnly = catObj.optBoolean("bluetoothOnly", false),
                 silentBehavior = catObj.optString("silentModeBehavior", "respect_silent")
             )
@@ -504,8 +504,9 @@ object AnnouncementManager {
         }
 
         val languageStr = SettingsHelper.getLanguage(context)
+        val globalRepeatMode = SettingsHelper.getRepeatMode(context)
         val announcementText = getLocalizedMessage(languageStr, nameToAnnounce)
-        speak(context, announcementText, isTest = false)
+        speak(context, announcementText, repeatMode = globalRepeatMode, isTest = false)
     }
 
     fun onCallEnded(context: Context) {
@@ -591,7 +592,7 @@ object AnnouncementManager {
                         }
                     } else if (wasSystemRingtoneActive) {
                         // Ringtone stopped (e.g. user pressed volume or power button to silence ringer).
-                        // Debounce for 800ms to allow brief track loops while silencing quickly on user action.
+                        // Debounce for 2000ms to allow brief track loops while silencing quickly on user action.
                         if (pendingSilenceStopRunnable == null) {
                             pendingSilenceStopRunnable = Runnable {
                                 pendingSilenceStopRunnable = null
@@ -600,7 +601,7 @@ object AnnouncementManager {
                                     stopAnnouncement()
                                 }
                             }
-                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 800)
+                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 2000)
                         }
                     }
                 }
@@ -740,7 +741,7 @@ object AnnouncementManager {
         text: String,
         languageStr: String = "",
         speechRate: Float = -1f,
-        repeatMode: String = "twice",
+        repeatMode: String = "three_times",
         volume: Float = 1.0f,
         isTest: Boolean = false
     ) {
@@ -762,7 +763,7 @@ object AnnouncementManager {
         text: String,
         languageStr: String,
         rate: Float,
-        repeatMode: String = "twice",
+        repeatMode: String = "three_times",
         volume: Float = 1.0f,
         isTest: Boolean = false
     ) {
@@ -813,10 +814,16 @@ object AnnouncementManager {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SmartCallAnnounce_final_0")
                 } else {
-                    it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_0")
+                    it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_final_0")
                 }
             } else {
-                val times = if (repeatMode == "until_answered") 6 else 2
+                val times = when (repeatMode) {
+                    "once", "1" -> 1
+                    "two_times", "2" -> 2
+                    "three_times", "thrice", "3_times", "3", "twice" -> 3
+                    "until_answered", "continuous" -> 8
+                    else -> 3
+                }
                 val finalIndex = times - 1
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -828,7 +835,7 @@ object AnnouncementManager {
                     }
                 } else {
                     val repeated = List(times) { text }.joinToString(". ")
-                    it.speak(repeated, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_old")
+                    it.speak(repeated, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_final_old")
                 }
             }
         }

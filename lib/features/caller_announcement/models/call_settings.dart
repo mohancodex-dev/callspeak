@@ -6,6 +6,7 @@ class CallSettings {
   final bool silenceInDndMode;
   final String language;
   final double speechRate;
+  final String repeatMode;
 
   CallSettings({
     required this.announcementEnabled,
@@ -15,6 +16,7 @@ class CallSettings {
     this.silenceInDndMode = true,
     required this.language,
     required this.speechRate,
+    this.repeatMode = 'three_times',
   });
 
   CallSettings copyWith({
@@ -25,6 +27,7 @@ class CallSettings {
     bool? silenceInDndMode,
     String? language,
     double? speechRate,
+    String? repeatMode,
   }) {
     return CallSettings(
       announcementEnabled: announcementEnabled ?? this.announcementEnabled,
@@ -34,6 +37,7 @@ class CallSettings {
       silenceInDndMode: silenceInDndMode ?? this.silenceInDndMode,
       language: language ?? this.language,
       speechRate: speechRate ?? this.speechRate,
+      repeatMode: repeatMode ?? this.repeatMode,
     );
   }
 }

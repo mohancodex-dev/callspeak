@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../caller_announcement/presentation/home_screen.dart';
 import '../contact_announce/presentation/screens/contact_list_screen.dart';
 import '../contact_announce/presentation/screens/default_rules_screen.dart';
 import '../contact_announce/presentation/screens/smart_features_screen.dart';
 
-class MainNavigationScaffold extends StatefulWidget {
-  const MainNavigationScaffold({super.key});
-
+class NavTabNotifier extends Notifier<int> {
   @override
-  State<MainNavigationScaffold> createState() => _MainNavigationScaffoldState();
+  int build() => 0;
+
+  void setTab(int index) => state = index;
 }
 
-class _MainNavigationScaffoldState extends State<MainNavigationScaffold> {
-  int _currentIndex = 1; // Default to Contacts tab to highlight the new feature!
+final mainNavTabProvider = NotifierProvider<NavTabNotifier, int>(NavTabNotifier.new);
+
+class MainNavigationScaffold extends ConsumerWidget {
+  const MainNavigationScaffold({super.key});
 
   final List<Widget> _screens = const [
     HomeScreen(),
@@ -22,18 +25,19 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold> {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(mainNavTabProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        selectedIndex: currentIndex,
+        onDestinationSelected: (idx) => ref.read(mainNavTabProvider.notifier).setTab(idx),
         elevation: 0,
         backgroundColor: colorScheme.surfaceContainerLow,
         indicatorColor: colorScheme.primaryContainer,

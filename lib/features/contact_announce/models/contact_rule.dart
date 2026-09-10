@@ -10,7 +10,7 @@ class ContactRule {
   final String language;
   final double volume; // 0.1 to 1.0
   final double speechRate; // 0.5 to 2.0
-  final String repeatMode; // 'once', 'twice', 'until_answered'
+  final String repeatMode; // 'once', 'two_times', 'three_times', 'until_answered'
   final bool bluetoothOnly;
   final bool isVip;
   final String relationshipTag; // 'general', 'family', 'work', 'friend', 'emergency'
@@ -25,7 +25,7 @@ class ContactRule {
     this.language = 'en-US',
     this.volume = 1.0,
     this.speechRate = 1.0,
-    this.repeatMode = 'twice',
+    this.repeatMode = 'three_times',
     this.bluetoothOnly = false,
     this.isVip = false,
     this.relationshipTag = 'general',
@@ -92,7 +92,9 @@ class ContactRule {
       language: map['language']?.toString() ?? 'en-US',
       volume: (map['volume'] as num?)?.toDouble() ?? 1.0,
       speechRate: (map['speechRate'] as num?)?.toDouble() ?? 1.0,
-      repeatMode: map['repeatMode']?.toString() ?? 'twice',
+      repeatMode: (map['repeatMode']?.toString() == 'twice')
+          ? 'three_times'
+          : (map['repeatMode']?.toString() ?? 'three_times'),
       bluetoothOnly: map['bluetoothOnly'] as bool? ?? false,
       isVip: map['isVip'] as bool? ?? false,
       relationshipTag: map['relationshipTag']?.toString() ?? 'general',
@@ -110,7 +112,7 @@ class CategoryRule {
   final String subtitle;
   final bool isEnabled;
   final String announcementTemplate;
-  final String repeatMode; // 'once', 'twice', 'until_answered'
+  final String repeatMode; // 'once', 'two_times', 'three_times', 'until_answered'
   final bool bluetoothOnly;
   final String silentModeBehavior; // 'respect_silent', 'bypass_silent', 'vibrate'
 
@@ -120,7 +122,7 @@ class CategoryRule {
     required this.subtitle,
     this.isEnabled = true,
     required this.announcementTemplate,
-    this.repeatMode = 'twice',
+    this.repeatMode = 'three_times',
     this.bluetoothOnly = false,
     this.silentModeBehavior = 'respect_silent',
   });
@@ -167,7 +169,9 @@ class CategoryRule {
       subtitle: map['subtitle']?.toString() ?? '',
       isEnabled: map['isEnabled'] as bool? ?? true,
       announcementTemplate: map['announcementTemplate']?.toString() ?? '{name} is calling',
-      repeatMode: map['repeatMode']?.toString() ?? 'twice',
+      repeatMode: (map['repeatMode']?.toString() == 'twice')
+          ? 'three_times'
+          : (map['repeatMode']?.toString() ?? 'three_times'),
       bluetoothOnly: map['bluetoothOnly'] as bool? ?? false,
       silentModeBehavior: map['silentModeBehavior']?.toString() ?? 'respect_silent',
     );
@@ -199,7 +203,7 @@ class CategoryRulesConfig {
         subtitle: 'Default behavior for known address book contacts',
         isEnabled: true,
         announcementTemplate: 'Incoming call from {name}',
-        repeatMode: 'twice',
+        repeatMode: 'three_times',
         bluetoothOnly: false,
         silentModeBehavior: 'respect_silent',
       ),
@@ -209,7 +213,7 @@ class CategoryRulesConfig {
         subtitle: 'Announce calls from numbers not saved in contacts',
         isEnabled: true,
         announcementTemplate: 'Call from unknown number: {number}',
-        repeatMode: 'once',
+        repeatMode: 'three_times',
         bluetoothOnly: false,
         silentModeBehavior: 'respect_silent',
       ),

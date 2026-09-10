@@ -8,7 +8,7 @@ class DefaultRulesScreen extends ConsumerWidget {
 
   void _editCategoryRule(BuildContext context, WidgetRef ref, CategoryRule rule, Function(CategoryRule) onSave) {
     final templateCtrl = TextEditingController(text: rule.announcementTemplate);
-    String repeatMode = rule.repeatMode;
+    String repeatMode = (rule.repeatMode == 'twice') ? 'three_times' : rule.repeatMode;
     bool bluetoothOnly = rule.bluetoothOnly;
     String silentBehavior = rule.silentModeBehavior;
 
@@ -73,30 +73,29 @@ class DefaultRulesScreen extends ConsumerWidget {
                     // Repeat Mode
                     Text('Repeat Mode', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('Once')),
-                            selected: repeatMode == 'once',
-                            onSelected: (val) => setSheetState(() => repeatMode = 'once'),
-                          ),
+                        ChoiceChip(
+                          label: const Text('3 Times (Default)'),
+                          selected: repeatMode == 'three_times' || repeatMode == 'twice',
+                          onSelected: (val) => setSheetState(() => repeatMode = 'three_times'),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('Twice')),
-                            selected: repeatMode == 'twice',
-                            onSelected: (val) => setSheetState(() => repeatMode = 'twice'),
-                          ),
+                        ChoiceChip(
+                          label: const Text('Until Answered'),
+                          selected: repeatMode == 'until_answered',
+                          onSelected: (val) => setSheetState(() => repeatMode = 'until_answered'),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('Until Answered')),
-                            selected: repeatMode == 'until_answered',
-                            onSelected: (val) => setSheetState(() => repeatMode = 'until_answered'),
-                          ),
+                        ChoiceChip(
+                          label: const Text('2 Times'),
+                          selected: repeatMode == 'two_times',
+                          onSelected: (val) => setSheetState(() => repeatMode = 'two_times'),
+                        ),
+                        ChoiceChip(
+                          label: const Text('1 Time'),
+                          selected: repeatMode == 'once',
+                          onSelected: (val) => setSheetState(() => repeatMode = 'once'),
                         ),
                       ],
                     ),
@@ -395,7 +394,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                         spacing: 8,
                         runSpacing: 4,
                         children: [
-                          _buildBadge(theme, colorScheme, 'Repeat: ${rule.repeatMode.replaceAll('_', ' ')}'),
+                          _buildBadge(theme, colorScheme, 'Repeat: ${rule.repeatMode == 'twice' ? '3 times' : rule.repeatMode.replaceAll('_', ' ')}'),
                           if (rule.silentModeBehavior == 'bypass_silent')
                             _buildBadge(theme, colorScheme, 'Bypasses Silent', color: Colors.amber.shade800),
                           if (rule.bluetoothOnly)

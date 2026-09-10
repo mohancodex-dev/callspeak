@@ -165,7 +165,7 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
     final allRules = allRulesAsync.value ?? [];
     final vipCount = allRules.where((r) => r.isVip).length;
     final mutedCount = allRules.where((r) => !r.isEnabled).length;
-    final customizedCount = allRules.where((r) => r.customText != '{name} is calling' || r.repeatMode != 'twice').length;
+    final customizedCount = allRules.where((r) => r.customText != '{name} is calling' || (r.repeatMode != 'three_times' && r.repeatMode != 'twice')).length;
 
     return Scaffold(
       body: SafeArea(
