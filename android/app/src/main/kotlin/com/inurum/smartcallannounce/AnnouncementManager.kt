@@ -590,16 +590,17 @@ object AnnouncementManager {
                             pendingSilenceStopRunnable = null
                         }
                     } else if (wasSystemRingtoneActive) {
-                        // Ringtone paused. Debounce for 4500ms to allow slow loop gaps without false stops
+                        // Ringtone stopped (e.g. user pressed volume or power button to silence ringer).
+                        // Debounce for 800ms to allow brief track loops while silencing quickly on user action.
                         if (pendingSilenceStopRunnable == null) {
                             pendingSilenceStopRunnable = Runnable {
                                 pendingSilenceStopRunnable = null
                                 if (currentCallState == CallState.RINGING && !isSilenced) {
-                                    Log.d(TAG, "System ringtone stopped for > 4.5s by user. Silencing announcement.")
+                                    Log.d(TAG, "System ringtone stopped by user. Silencing announcement.")
                                     stopAnnouncement()
                                 }
                             }
-                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 4500)
+                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 800)
                         }
                     }
                 }
@@ -615,14 +616,31 @@ object AnnouncementManager {
             }
         }
 
-        // 2. BroadcastReceiver for explicit ringer mode changes
-        // NOTE: We deliberately do NOT listen to VOLUME_CHANGED_ACTION or ACTION_SCREEN_OFF here!
-        // VOLUME_CHANGED_ACTION fires on normal ascending ringtone / stream volume ramping and falsely kills speech.
-        // ACTION_SCREEN_OFF fires when phone is placed in pocket or proximity sensor activates.
+        // 2. BroadcastReceiver for hardware volume down and ringer mode changes
+        // Detects when the user deliberately presses Volume Down to silence the call.
+        // Ascending ringtone (volume increases) is ignored to prevent false mutes.
         silenceReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 if (isSilenced) return
                 val action = intent?.action ?: return
+
+                if (action == "android.media.VOLUME_CHANGED_ACTION") {
+                    // Ignore initial audio stream setup events during first 500ms of the call
+                    if (System.currentTimeMillis() - callStartTime < 500) return
+
+                    val streamType = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+                    val prevVol = intent.getIntExtra("android.media.EXTRA_PREV_VOLUME_STREAM_VALUE", -1)
+                    val newVol = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
+
+                    if (streamType == AudioManager.STREAM_RING || streamType == AudioManager.STREAM_NOTIFICATION) {
+                        // User pressed Volume Down or muted stream
+                        if (newVol < prevVol || newVol == 0) {
+                            Log.d(TAG, "User pressed volume down (stream=$streamType, prev=$prevVol, new=$newVol). Silencing announcement.")
+                            stopAnnouncement()
+                            return
+                        }
+                    }
+                }
 
                 if (action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
                     val am = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -638,6 +656,7 @@ object AnnouncementManager {
         }
 
         val filter = IntentFilter().apply {
+            addAction("android.media.VOLUME_CHANGED_ACTION")
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
         }
 
