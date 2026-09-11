@@ -61,6 +61,14 @@ object AnnouncementManager {
     private var activeCallNumber: String? = null
     private var isAnnouncingCall = false
 
+    private var isPreviewActive = false
+    private var currentSessionId: Long = 0L
+    private var currentRepeatIndex = 0
+    private var targetRepeatCount = 1
+    private var pendingNextRepeatRunnable: Runnable? = null
+    private var currentAnnouncementText: String? = null
+    private var currentSpeechParams: Bundle? = null
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingUnknownAnnouncementRunnable: Runnable? = null
     private var pendingSilenceStopRunnable: Runnable? = null
@@ -143,15 +151,17 @@ object AnnouncementManager {
                                 override fun onDone(utteranceId: String?) {
                                     isSpeaking = false
                                     Log.d(TAG, "TTS utterance finished: $utteranceId")
-                                    if (utteranceId?.contains("final") == true || utteranceId == "SmartCallAnnounce_final_old" || utteranceId == "SmartCallAnnounce_old") {
-                                        abandonAudioFocus()
+                                    mainHandler.post {
+                                        handleUtteranceDone(utteranceId)
                                     }
                                 }
 
                                 override fun onError(utteranceId: String?) {
                                     isSpeaking = false
-                                    abandonAudioFocus()
                                     Log.e(TAG, "TTS utterance error: $utteranceId")
+                                    mainHandler.post {
+                                        handleUtteranceDone(utteranceId)
+                                    }
                                 }
                             })
 
@@ -174,13 +184,62 @@ object AnnouncementManager {
         }
     }
 
+    private fun handleUtteranceDone(utteranceId: String?) {
+        if (utteranceId == null || !utteranceId.startsWith("SmartCallAnnounce_${currentSessionId}_")) {
+            Log.d(TAG, "Ignoring stale or mismatched utterance callback: $utteranceId for currentSessionId=$currentSessionId")
+            return
+        }
+
+        if (isSilenced) {
+            abandonAudioFocus()
+            return
+        }
+
+        currentRepeatIndex++
+        val canRepeat = (currentCallState == CallState.RINGING || isPreviewActive) && !isSilenced
+        val shouldRepeatMore = currentRepeatIndex < targetRepeatCount
+
+        if (canRepeat && shouldRepeatMore) {
+            Log.d(TAG, "Scheduling repeat $currentRepeatIndex of $targetRepeatCount in 2500ms")
+            val thisSession = currentSessionId
+            pendingNextRepeatRunnable?.let { mainHandler.removeCallbacks(it) }
+            pendingNextRepeatRunnable = Runnable {
+                pendingNextRepeatRunnable = null
+                val stillValid = (currentCallState == CallState.RINGING || isPreviewActive) && !isSilenced && (thisSession == currentSessionId)
+                val text = currentAnnouncementText
+                if (stillValid && text != null && tts != null) {
+                    val uid = "SmartCallAnnounce_${thisSession}_$currentRepeatIndex"
+                    Log.d(TAG, "Executing repeat utterance $currentRepeatIndex (uid=$uid)")
+                    isSpeaking = true
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, currentSpeechParams, uid)
+                    } else {
+                        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, uid)
+                    }
+                } else {
+                    isSpeaking = false
+                    isAnnouncingCall = false
+                    isPreviewActive = false
+                    abandonAudioFocus()
+                }
+            }
+            mainHandler.postDelayed(pendingNextRepeatRunnable!!, 2500)
+        } else {
+            Log.d(TAG, "Announcement complete after $currentRepeatIndex repetitions")
+            isSpeaking = false
+            isAnnouncingCall = false
+            isPreviewActive = false
+            abandonAudioFocus()
+        }
+    }
+
     private fun requestAudioFocus(context: Context): Boolean {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
         audioManager = am
 
         val isBtConnected = isBluetoothAudioConnected(context)
         val alsoSpeaker = SettingsHelper.isAlsoAnnounceOnSpeaker(context)
-        val focusUsage = if (isBtConnected && !alsoSpeaker) {
+        val focusUsage = if (isPreviewActive || (isBtConnected && !alsoSpeaker)) {
             AudioAttributes.USAGE_MEDIA
         } else {
             AudioAttributes.USAGE_NOTIFICATION_RINGTONE
@@ -201,7 +260,7 @@ object AnnouncementManager {
                 am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             } else {
                 @Suppress("DEPRECATION")
-                val streamType = if (isBtConnected && !alsoSpeaker) AudioManager.STREAM_MUSIC else AudioManager.STREAM_RING
+                val streamType = if (isPreviewActive || (isBtConnected && !alsoSpeaker)) AudioManager.STREAM_MUSIC else AudioManager.STREAM_RING
                 @Suppress("DEPRECATION")
                 am.requestAudioFocus(
                     null,
@@ -528,14 +587,14 @@ object AnnouncementManager {
                     isTest = false
                 )
             } else {
-                // Not individually customized: dynamically use Home Screen language!
+                // Not individually customized: dynamically use Home Screen language & repeat mode!
                 val text = getLocalizedContactMessage(globalLanguage, nameToAnnounce)
                 speak(
                     context = context,
                     text = text,
                     languageStr = globalLanguage,
                     speechRate = contactRule.speechRate,
-                    repeatMode = contactRule.repeatMode,
+                    repeatMode = globalRepeatMode,
                     volume = contactRule.volume,
                     isTest = false
                 )
@@ -629,8 +688,24 @@ object AnnouncementManager {
     }
 
     fun stopAnnouncement() {
+        currentSessionId = 0L
         isSilenced = true
         isAnnouncingCall = false
+        isPreviewActive = false
+        currentRepeatIndex = 0
+
+        pendingNextRepeatRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingNextRepeatRunnable = null
+        }
+        pendingSilenceStopRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingSilenceStopRunnable = null
+        }
+        pendingUnknownAnnouncementRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingUnknownAnnouncementRunnable = null
+        }
 
         // Unconditionally stop TTS to flush all queued utterances immediately
         try {
@@ -643,15 +718,6 @@ object AnnouncementManager {
 
         abandonAudioFocus()
         releaseWakeLock()
-
-        pendingSilenceStopRunnable?.let {
-            mainHandler.removeCallbacks(it)
-            pendingSilenceStopRunnable = null
-        }
-        pendingUnknownAnnouncementRunnable?.let {
-            mainHandler.removeCallbacks(it)
-            pendingUnknownAnnouncementRunnable = null
-        }
 
         stopSilenceListeners()
         onAnnouncementStoppedListener?.invoke()
@@ -693,16 +759,19 @@ object AnnouncementManager {
                         }
                     } else if (wasSystemRingtoneActive) {
                         // Ringtone stopped (e.g. user pressed volume or power button to silence ringer).
-                        // Debounce for 2000ms to allow brief track loops while silencing quickly on user action.
-                        if (pendingSilenceStopRunnable == null) {
-                            pendingSilenceStopRunnable = Runnable {
-                                pendingSilenceStopRunnable = null
-                                if (currentCallState == CallState.RINGING && !isSilenced) {
-                                    Log.d(TAG, "System ringtone stopped by user. Silencing announcement.")
-                                    stopAnnouncement()
+                        // Note: If announcement is currently speaking or in between repeat intervals,
+                        // ringtone ducking is normal and expected — do not false-silence!
+                        if (!isSpeaking && pendingNextRepeatRunnable == null) {
+                            if (pendingSilenceStopRunnable == null) {
+                                pendingSilenceStopRunnable = Runnable {
+                                    pendingSilenceStopRunnable = null
+                                    if (currentCallState == CallState.RINGING && !isSilenced && !isSpeaking && pendingNextRepeatRunnable == null) {
+                                        Log.d(TAG, "System ringtone stopped by user. Silencing announcement.")
+                                        stopAnnouncement()
+                                    }
                                 }
+                                mainHandler.postDelayed(pendingSilenceStopRunnable!!, 4000)
                             }
-                            mainHandler.postDelayed(pendingSilenceStopRunnable!!, 2000)
                         }
                     }
                 }
@@ -799,41 +868,32 @@ object AnnouncementManager {
     }
 
     fun testAnnouncement(context: Context) {
-        if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) {
-            Log.d(TAG, "Bluetooth only is ON, but no BT audio device connected. Test skipped.")
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, "Bluetooth not connected!", Toast.LENGTH_SHORT).show()
-            }
-            return
-        }
-        if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) {
-            Log.d(TAG, "Phone is in Silent/Vibrate mode. Test skipped.")
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, "Phone is in Silent/Vibrate mode!", Toast.LENGTH_SHORT).show()
-            }
-            return
-        }
-        if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) {
-            Log.d(TAG, "Phone is in DND mode. Test skipped.")
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, "Phone is in Do Not Disturb (DND) mode!", Toast.LENGTH_SHORT).show()
-            }
-            return
-        }
         val languageStr = SettingsHelper.getLanguage(context)
+        val repeatMode = SettingsHelper.getRepeatMode(context)
+        val rate = SettingsHelper.getSpeechRate(context)
         val announcementText = getLocalizedContactMessage(languageStr, "Test Caller")
-        speak(context, announcementText, isTest = true)
+        previewAnnouncement(context, announcementText, languageStr, rate, 1.0f, repeatMode)
     }
 
-    fun previewAnnouncement(context: Context, text: String, languageStr: String, rate: Float, volume: Float) {
+    fun previewAnnouncement(
+        context: Context,
+        text: String,
+        languageStr: String,
+        rate: Float,
+        volume: Float,
+        repeatMode: String = "three_times"
+    ) {
+        stopAnnouncement()
+        isSilenced = false
+        isPreviewActive = true
         speak(
             context = context,
             text = text,
             languageStr = languageStr,
             speechRate = rate,
-            repeatMode = "once",
+            repeatMode = repeatMode,
             volume = volume,
-            isTest = true
+            isTest = false
         )
     }
 
@@ -873,7 +933,7 @@ object AnnouncementManager {
             return
         }
 
-        // Request audio focus with ducking so the incoming ringtone lowers in volume while speech is announced
+        // Request audio focus with ducking so speech is clearly audible
         requestAudioFocus(context)
 
         tts?.let {
@@ -889,7 +949,14 @@ object AnnouncementManager {
             val isBtConnected = isBluetoothAudioConnected(context)
             val alsoSpeaker = SettingsHelper.isAlsoAnnounceOnSpeaker(context)
 
-            if (isBtConnected && !alsoSpeaker) {
+            if (isPreviewActive && !isBtConnected) {
+                try {
+                    audioManager?.mode = AudioManager.MODE_NORMAL
+                    audioManager?.isSpeakerphoneOn = false
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to normalize audio mode: ${e.message}")
+                }
+            } else if (isBtConnected && !alsoSpeaker) {
                 try {
                     audioManager?.isSpeakerphoneOn = false
                 } catch (e: Exception) {
@@ -916,15 +983,13 @@ object AnnouncementManager {
                 }
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val usage = if (isBtConnected && !alsoSpeaker) {
-                    // USAGE_MEDIA routes exclusively to connected Bluetooth/headset and never to internal phone speaker
-                    AudioAttributes.USAGE_MEDIA
-                } else {
-                    // Ringtone stream routes to phone speaker (and also Bluetooth if connected and alsoSpeaker is true)
-                    AudioAttributes.USAGE_NOTIFICATION_RINGTONE
-                }
+            val usage = if (isPreviewActive || (isBtConnected && !alsoSpeaker)) {
+                AudioAttributes.USAGE_MEDIA
+            } else {
+                AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+            }
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val audioAttributes = AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .setUsage(usage)
@@ -932,38 +997,45 @@ object AnnouncementManager {
                 it.setAudioAttributes(audioAttributes)
             }
 
-            val params = Bundle().apply {
-                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f))
+            val streamType = if (isPreviewActive || (isBtConnected && !alsoSpeaker)) {
+                AudioManager.STREAM_MUSIC
+            } else {
+                AudioManager.STREAM_RING
             }
 
+            val params = Bundle().apply {
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f))
+                putString(TextToSpeech.Engine.KEY_PARAM_STREAM, streamType.toString())
+            }
+
+            val times = when (repeatMode) {
+                "once", "1" -> 1
+                "two_times", "2" -> 2
+                "three_times", "thrice", "3_times", "3", "twice" -> 3
+                "until_answered", "continuous" -> if (isPreviewActive) 3 else Int.MAX_VALUE
+                else -> 3
+            }
+            currentSessionId = System.currentTimeMillis()
+            val thisSessionId = currentSessionId
+            currentRepeatIndex = 0
+            targetRepeatCount = times
+            currentAnnouncementText = text
+            currentSpeechParams = params
+
             isSpeaking = true
-
-            if (isTest || repeatMode == "once") {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SmartCallAnnounce_final_0")
-                } else {
-                    it.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_final_0")
-                }
+            val uid = "SmartCallAnnounce_${thisSessionId}_0"
+            Log.d(TAG, "Calling tts.speak (session=$thisSessionId, text='$text', usage=$usage, stream=$streamType)")
+            val speakResult = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                it.speak(text, TextToSpeech.QUEUE_FLUSH, params, uid)
             } else {
-                val times = when (repeatMode) {
-                    "once", "1" -> 1
-                    "two_times", "2" -> 2
-                    "three_times", "thrice", "3_times", "3", "twice" -> 3
-                    "until_answered", "continuous" -> 8
-                    else -> 3
-                }
-                val finalIndex = times - 1
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    it.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SmartCallAnnounce_0")
-                    for (i in 1 until times) {
-                        it.playSilentUtterance(3000, TextToSpeech.QUEUE_ADD, "SmartCallAnnounce_silence_$i")
-                        val utteranceId = if (i == finalIndex) "SmartCallAnnounce_final_$i" else "SmartCallAnnounce_$i"
-                        it.speak(text, TextToSpeech.QUEUE_ADD, params, utteranceId)
-                    }
-                } else {
-                    val repeated = List(times) { text }.joinToString(". ")
-                    it.speak(repeated, TextToSpeech.QUEUE_FLUSH, null, "SmartCallAnnounce_final_old")
+                it.speak(text, TextToSpeech.QUEUE_FLUSH, null, uid)
+            }
+            Log.d(TAG, "tts.speak result: $speakResult")
+            if (speakResult != TextToSpeech.SUCCESS) {
+                Log.e(TAG, "tts.speak failed with code: $speakResult")
+                if (isPreviewActive) {
+                    isPreviewActive = false
+                    abandonAudioFocus()
                 }
             }
         }

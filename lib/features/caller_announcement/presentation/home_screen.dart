@@ -7,6 +7,7 @@ import '../models/call_settings.dart';
 import '../../navigation/main_navigation_scaffold.dart';
 import '../../contact_announce/providers/contact_rule_provider.dart' hide nativeBridgeProvider;
 import '../../../core/constants/announcement_languages.dart';
+import '../../../core/theme/theme_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -20,10 +21,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isPlayingPreview = false;
 
   static const List<Map<String, String>> _sampleCallers = [
-    {'name': 'Mom', 'tag': 'Family', 'number': '+91 98765 43210'},
-    {'name': 'Rahul Sharma', 'tag': 'Friend', 'number': '+91 99887 76655'},
-    {'name': 'Office Boss', 'tag': 'Work', 'number': '+91 91234 56789'},
-    {'name': 'Unknown Number', 'tag': 'Unknown', 'number': '+91 90000 12345'},
+    {'name': 'VIP Contact', 'tag': 'VIP', 'number': '+91 98000 00001'},
+    {'name': 'Saved Contact', 'tag': 'Saved', 'number': '+91 98000 00002'},
+    {'name': 'Office Colleague', 'tag': 'Work', 'number': '+91 98000 00003'},
+    {'name': 'Unknown Number', 'tag': 'Unknown', 'number': '+91 98000 00004'},
   ];
 
   static const Map<String, String> _languageNames = AnnouncementLanguages.languageNames;
@@ -54,28 +55,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _testLiveVoice(CallSettings settings) async {
+    final bridge = ref.read(nativeBridgeProvider);
+    if (_isPlayingPreview) {
+      await bridge.stopAnnouncement();
+      if (mounted) {
+        setState(() => _isPlayingPreview = false);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Announcement preview stopped'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isPlayingPreview = true);
     final sample = _sampleCallers[_selectedSimulatedCallerIndex];
     final message = _getSimulatedMessage(settings.language, sample);
 
-    final bridge = ref.read(nativeBridgeProvider);
-    await bridge.previewAnnouncement(
-      text: message,
-      language: settings.language,
-      speechRate: settings.speechRate,
-      volume: 1.0,
-    );
+    try {
+      await bridge.previewAnnouncement(
+        text: message,
+        language: settings.language,
+        speechRate: settings.speechRate,
+        volume: 1.0,
+        repeatMode: settings.repeatMode,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPlayingPreview = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting voice preview: $e'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+      return;
+    }
 
     if (mounted) {
-      setState(() => _isPlayingPreview = false);
+      final repeatSeconds = switch (settings.repeatMode) {
+        'once' || '1' => 4,
+        'two_times' || '2' => 8,
+        'three_times' || 'twice' || '3' => 14,
+        _ => 14,
+      };
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Playing preview: "$message" (${_getRepeatLabel(settings.repeatMode)})'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: repeatSeconds),
+          action: SnackBarAction(
+            label: 'Stop',
+            onPressed: () {
+              bridge.stopAnnouncement();
+              if (mounted) {
+                setState(() => _isPlayingPreview = false);
+              }
+            },
+          ),
         ),
       );
+
+      // Automatically reset preview state after expected speech duration
+      Future.delayed(Duration(seconds: repeatSeconds), () {
+        if (mounted && _isPlayingPreview) {
+          setState(() => _isPlayingPreview = false);
+        }
+      });
     }
   }
 
@@ -86,6 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final bluetoothConnected = ref.watch(bluetoothStatusProvider);
     final allRulesAsync = ref.watch(contactRulesProvider);
     final smartConfigAsync = ref.watch(smartFeaturesProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -138,10 +193,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         actions: [
           IconButton.filledTonal(
-            tooltip: 'Quick Voice Test',
-            icon: const Icon(Icons.volume_up_rounded, size: 20),
+            tooltip: 'App Theme (Light/Dark/System)',
+            icon: Icon(
+              switch (themeMode) {
+                ThemeMode.system => Icons.brightness_auto_rounded,
+                ThemeMode.light => Icons.light_mode_rounded,
+                ThemeMode.dark => Icons.dark_mode_rounded,
+              },
+              size: 20,
+            ),
+            onPressed: () => _showThemeModeSheet(context, ref, themeMode),
+          ),
+          const SizedBox(width: 4),
+          IconButton.filledTonal(
+            tooltip: _isPlayingPreview ? 'Stop Voice Test' : 'Quick Voice Test',
+            icon: Icon(
+              _isPlayingPreview ? Icons.stop_rounded : Icons.volume_up_rounded,
+              size: 20,
+              color: _isPlayingPreview ? Colors.red.shade700 : null,
+            ),
             onPressed: () {
-              ref.read(nativeBridgeProvider).testAnnouncement();
+              final settings = settingsAsyncValue.value;
+              if (settings != null) {
+                _testLiveVoice(settings);
+              } else {
+                ref.read(nativeBridgeProvider).testAnnouncement();
+              }
             },
           ),
           const SizedBox(width: 12),
@@ -250,9 +327,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 theme: theme,
                 colorScheme: colorScheme,
               ),
+              const SizedBox(height: 22),
+
+              // 8. App Appearance & Theme
+              _buildDashboardSectionHeader(
+                title: 'App Theme & Display',
+                subtitle: 'Dark mode, Light mode, or System default',
+                theme: theme,
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 10),
+              _buildThemeModeCard(
+                themeMode: themeMode,
+                theme: theme,
+                colorScheme: colorScheme,
+              ),
               const SizedBox(height: 26),
 
-              // 8. Bottom Fast Shortcuts
+              // 9. Bottom Fast Shortcuts
               _buildQuickShortcutsBanner(colorScheme: colorScheme),
               const SizedBox(height: 24),
             ],
@@ -802,23 +894,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Test Button
+          // Test Button (Toggles between Play and Stop)
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: _isPlayingPreview ? null : () => _testLiveVoice(settings),
-              icon: _isPlayingPreview
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.play_circle_fill_rounded),
+              onPressed: () => _testLiveVoice(settings),
+              icon: Icon(
+                _isPlayingPreview ? Icons.stop_circle_rounded : Icons.play_circle_fill_rounded,
+              ),
               label: Text(
-                _isPlayingPreview ? 'Announcing Test Voice...' : 'Play Voice Announcement Test',
+                _isPlayingPreview ? 'Stop Announcement Preview' : 'Play Voice Announcement Test',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
               ),
               style: FilledButton.styleFrom(
+                backgroundColor: _isPlayingPreview ? Colors.red.shade700 : null,
+                foregroundColor: _isPlayingPreview ? Colors.white : null,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
@@ -1246,6 +1336,346 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // 8. App Appearance & Theme Card
+  Widget _buildThemeModeCard({
+    required ThemeMode themeMode,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.outlineVariant.withAlpha(40)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withAlpha(25),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  themeMode == ThemeMode.system
+                      ? Icons.brightness_auto_rounded
+                      : (themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.light_mode_rounded),
+                  color: Colors.indigo,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Theme Mode', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text(
+                      switch (themeMode) {
+                        ThemeMode.system => 'System Default (Matches phone settings)',
+                        ThemeMode.light => 'Light Mode (Always bright)',
+                        ThemeMode.dark => 'Dark Mode (Always dark)',
+                      },
+                      style: TextStyle(fontSize: 12, color: theme.hintColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildThemeOptionPill(
+                title: 'System',
+                subtitle: 'Default',
+                icon: Icons.brightness_auto_rounded,
+                isSelected: themeMode == ThemeMode.system,
+                onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system),
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(width: 8),
+              _buildThemeOptionPill(
+                title: 'Light',
+                subtitle: 'Day',
+                icon: Icons.light_mode_rounded,
+                isSelected: themeMode == ThemeMode.light,
+                onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light),
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(width: 8),
+              _buildThemeOptionPill(
+                title: 'Dark',
+                subtitle: 'Night',
+                icon: Icons.dark_mode_rounded,
+                isSelected: themeMode == ThemeMode.dark,
+                onTap: () => ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark),
+                colorScheme: colorScheme,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeOptionPill({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required ColorScheme colorScheme,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colorScheme.primaryContainer
+                : colorScheme.surfaceContainerHigh.withAlpha(80),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? colorScheme.primary : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                size: 22,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isSelected ? colorScheme.primary.withAlpha(200) : colorScheme.outline,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showThemeModeSheet(BuildContext context, WidgetRef ref, ThemeMode currentMode) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        final sheetTheme = Theme.of(sheetCtx);
+        final sheetColorScheme = sheetTheme.colorScheme;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: sheetTheme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: sheetTheme.dividerColor.withAlpha(120),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: sheetColorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.palette_rounded, color: sheetColorScheme.primary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Choose App Theme',
+                          style: sheetTheme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                        Text(
+                          'Select your preferred display appearance',
+                          style: TextStyle(fontSize: 12, color: sheetTheme.hintColor),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildThemeSheetTile(
+                  context: sheetCtx,
+                  ref: ref,
+                  mode: ThemeMode.system,
+                  currentMode: currentMode,
+                  title: 'System Default (सिस्टम डिफ़ॉल्ट)',
+                  subtitle: 'Automatically adapts to device dark/light theme',
+                  icon: Icons.brightness_auto_rounded,
+                  isDefault: true,
+                ),
+                const SizedBox(height: 8),
+                _buildThemeSheetTile(
+                  context: sheetCtx,
+                  ref: ref,
+                  mode: ThemeMode.light,
+                  currentMode: currentMode,
+                  title: 'Light Mode (लाइट मोड)',
+                  subtitle: 'Bright, high-contrast look for day use',
+                  icon: Icons.light_mode_rounded,
+                ),
+                const SizedBox(height: 8),
+                _buildThemeSheetTile(
+                  context: sheetCtx,
+                  ref: ref,
+                  mode: ThemeMode.dark,
+                  currentMode: currentMode,
+                  title: 'Dark Mode (डार्क मोड)',
+                  subtitle: 'Dim, eye-friendly look that saves battery',
+                  icon: Icons.dark_mode_rounded,
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThemeSheetTile({
+    required BuildContext context,
+    required WidgetRef ref,
+    required ThemeMode mode,
+    required ThemeMode currentMode,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    bool isDefault = false,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isSelected = mode == currentMode;
+
+    return InkWell(
+      onTap: () {
+        ref.read(themeModeProvider.notifier).setThemeMode(mode);
+        Navigator.pop(context);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primaryContainer.withAlpha(120)
+              : colorScheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withAlpha(40),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isSelected ? colorScheme.primary : colorScheme.surfaceContainerHigh,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                        ),
+                      ),
+                      if (isDefault) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withAlpha(30),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'DEFAULT',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: colorScheme.primary, size: 22)
+            else
+              Icon(Icons.radio_button_unchecked_rounded, color: theme.hintColor.withAlpha(100), size: 22),
+          ],
+        ),
       ),
     );
   }

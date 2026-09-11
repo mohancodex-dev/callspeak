@@ -77,6 +77,13 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
   }
 
   Future<void> _playPreview(String globalLang) async {
+    final nativeBridge = ref.read(nativeBridgeProvider);
+    if (_isPreviewPlaying) {
+      await nativeBridge.stopAnnouncement();
+      if (mounted) setState(() => _isPreviewPlaying = false);
+      return;
+    }
+
     setState(() => _isPreviewPlaying = true);
     final effectiveLang = _isCustomized ? _language : globalLang;
     final text = _isCustomized
@@ -85,16 +92,23 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
             : AnnouncementLanguages.getContactAnnouncement(language: effectiveLang, name: widget.contact.name))
         : AnnouncementLanguages.getContactAnnouncement(language: effectiveLang, name: widget.contact.name);
 
-    final nativeBridge = ref.read(nativeBridgeProvider);
     await nativeBridge.previewAnnouncement(
       text: text,
       language: effectiveLang,
       speechRate: _speechRate,
       volume: _volume,
+      repeatMode: _repeatMode,
     );
 
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
+    final repeatSeconds = switch (_repeatMode) {
+      'once' || '1' => 4,
+      'two_times' || '2' => 8,
+      'three_times' || 'twice' || '3' => 14,
+      _ => 14,
+    };
+
+    Future.delayed(Duration(seconds: repeatSeconds), () {
+      if (mounted && _isPreviewPlaying) {
         setState(() => _isPreviewPlaying = false);
       }
     });

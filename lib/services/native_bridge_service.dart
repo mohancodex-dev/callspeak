@@ -87,6 +87,7 @@ class NativeBridgeService {
     required String language,
     required double speechRate,
     required double volume,
+    String repeatMode = 'three_times',
   }) async {
     try {
       final result = await _methodChannel.invokeMethod<bool>('previewAnnouncement', {
@@ -94,10 +95,21 @@ class NativeBridgeService {
         'language': language,
         'speechRate': speechRate,
         'volume': volume,
+        'repeatMode': repeatMode,
       });
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint("Failed to preview announcement: '${e.message}'.");
+      return false;
+    }
+  }
+
+  Future<bool> stopAnnouncement() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('stopAnnouncement');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to stop announcement: '${e.message}'.");
       return false;
     }
   }

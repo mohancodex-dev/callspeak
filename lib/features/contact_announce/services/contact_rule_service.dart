@@ -11,18 +11,39 @@ class ContactRuleService {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString(keyContactRules);
     if (jsonStr == null || jsonStr.trim().isEmpty) {
-      // First time initialization: populate default curated sample contact rules
-      final initialRules = _getDefaultSampleRules();
-      await saveContactRules(initialRules);
-      return initialRules;
+      return [];
     }
 
     try {
       final List<dynamic> decoded = json.decode(jsonStr) as List<dynamic>;
-      return decoded.map((e) => ContactRule.fromMap(e as Map<String, dynamic>)).toList();
+      final originalList = decoded.map((e) => ContactRule.fromMap(e as Map<String, dynamic>)).toList();
+      // Filter out any legacy dummy sample contacts (e.g. contact_1 .. contact_5)
+      final cleanedList = originalList.where((r) => !_isDummyContact(r)).toList();
+      if (cleanedList.length != originalList.length) {
+        await saveContactRules(cleanedList);
+      }
+      return cleanedList;
     } catch (e) {
-      return _getDefaultSampleRules();
+      return [];
     }
+  }
+
+  static bool _isDummyContact(ContactRule rule) {
+    const dummyIds = {'contact_1', 'contact_2', 'contact_3', 'contact_4', 'contact_5'};
+    const dummyNumbers = {
+      '+91 98765 43210',
+      '+91 91234 56789',
+      '+91 94567 89012',
+      '+91 99887 76655',
+      '+91 14098 76543',
+      '9876543210',
+      '9123456789',
+      '9456789012',
+      '9988776655',
+      '1409876543',
+    };
+    final normalized = rule.phoneNumber.replaceAll(RegExp(r'\D'), '');
+    return dummyIds.contains(rule.id) || dummyNumbers.contains(rule.phoneNumber) || dummyNumbers.contains(normalized);
   }
 
   Future<void> saveContactRules(List<ContactRule> rules) async {
@@ -88,88 +109,5 @@ class ContactRuleService {
     await prefs.setString(keySmartFeatures, config.toJson());
   }
 
-  static List<ContactRule> _getDefaultSampleRules() {
-    return [
-      const ContactRule(
-        id: 'contact_1',
-        name: 'Mom',
-        phoneNumber: '+91 98765 43210',
-        avatarColorIndex: 0,
-        isEnabled: true,
-        customText: 'Mom is calling! Please pick up the call.',
-        language: 'en-US',
-        volume: 1.0,
-        speechRate: 1.0,
-        repeatMode: 'until_answered',
-        bluetoothOnly: false,
-        isVip: true,
-        relationshipTag: 'family',
-        isCustomized: false,
-      ),
-      const ContactRule(
-        id: 'contact_2',
-        name: 'Project Manager',
-        phoneNumber: '+91 91234 56789',
-        avatarColorIndex: 1,
-        isEnabled: true,
-        customText: 'Incoming office call from Project Manager.',
-        language: 'en-US',
-        volume: 0.9,
-        speechRate: 1.1,
-        repeatMode: 'three_times',
-        bluetoothOnly: false,
-        isVip: false,
-        relationshipTag: 'work',
-        isCustomized: false,
-      ),
-      const ContactRule(
-        id: 'contact_3',
-        name: 'Dr. Sameer (Clinic)',
-        phoneNumber: '+91 94567 89012',
-        avatarColorIndex: 2,
-        isEnabled: true,
-        customText: 'Urgent medical call from Doctor Sameer.',
-        language: 'en-US',
-        volume: 1.0,
-        speechRate: 0.9,
-        repeatMode: 'until_answered',
-        bluetoothOnly: false,
-        isVip: true,
-        relationshipTag: 'emergency',
-        isCustomized: false,
-      ),
-      const ContactRule(
-        id: 'contact_4',
-        name: 'Rahul Sharma',
-        phoneNumber: '+91 99887 76655',
-        avatarColorIndex: 3,
-        isEnabled: true,
-        customText: 'Rahul is calling you buddy!',
-        language: 'hi-IN',
-        volume: 0.8,
-        speechRate: 1.0,
-        repeatMode: 'three_times',
-        bluetoothOnly: false,
-        isVip: false,
-        relationshipTag: 'friend',
-        isCustomized: false,
-      ),
-      const ContactRule(
-        id: 'contact_5',
-        name: 'Telemarketing / Spam',
-        phoneNumber: '+91 14098 76543',
-        avatarColorIndex: 4,
-        isEnabled: false,
-        customText: 'Muted Spam Caller',
-        language: 'en-US',
-        volume: 0.0,
-        speechRate: 1.0,
-        repeatMode: 'once',
-        bluetoothOnly: false,
-        isVip: false,
-        relationshipTag: 'general',
-        isCustomized: false,
-      ),
-    ];
-  }
+
 }

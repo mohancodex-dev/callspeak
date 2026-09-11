@@ -95,7 +95,12 @@ class MainActivity: FlutterActivity() {
                     val language = call.argument<String>("language") ?: "en-US"
                     val speechRate = (call.argument<Double>("speechRate") ?: 1.0).toFloat()
                     val volume = (call.argument<Double>("volume") ?: 1.0).toFloat()
-                    AnnouncementManager.previewAnnouncement(context, text, language, speechRate, volume)
+                    val repeatMode = call.argument<String>("repeatMode") ?: "three_times"
+                    AnnouncementManager.previewAnnouncement(context, text, language, speechRate, volume, repeatMode)
+                    result.success(true)
+                }
+                "stopAnnouncement" -> {
+                    AnnouncementManager.stopAnnouncement()
                     result.success(true)
                 }
                 else -> {

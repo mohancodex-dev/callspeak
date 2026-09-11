@@ -1,17 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/theme/theme_provider.dart';
 import 'features/navigation/main_navigation_scaffold.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: SmartCallAnnounceApp()));
+  final prefs = await SharedPreferences.getInstance();
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const SmartCallAnnounceApp(),
+    ),
+  );
 }
 
-class SmartCallAnnounceApp extends StatelessWidget {
+class SmartCallAnnounceApp extends ConsumerWidget {
   const SmartCallAnnounceApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
     // Google Material 3 Expressive Pixel Blue / Indigo palette
     const primarySeed = Color(0xFF0B57D0);
 
@@ -152,7 +163,7 @@ class SmartCallAnnounceApp extends StatelessWidget {
           }),
         ),
       ),
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       home: const MainNavigationScaffold(),
     );
   }
