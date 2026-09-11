@@ -6,6 +6,7 @@ import '../providers/bluetooth_status_provider.dart';
 import '../models/call_settings.dart';
 import '../../navigation/main_navigation_scaffold.dart';
 import '../../contact_announce/providers/contact_rule_provider.dart' hide nativeBridgeProvider;
+import '../../../core/constants/announcement_languages.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -25,46 +26,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     {'name': 'Unknown Number', 'tag': 'Unknown', 'number': '+91 90000 12345'},
   ];
 
-  static const Map<String, String> _languageNames = {
-    'hi-IN': 'Hindi (हिन्दी)',
-    'en-US': 'English (US)',
-    'bn-IN': 'Bengali (বাংলা)',
-    'te-IN': 'Telugu (తెలుగు)',
-    'mr-IN': 'Marathi (मराठी)',
-    'ta-IN': 'Tamil (தமிழ்)',
-    'gu-IN': 'Gujarati (ગુજરાતી)',
-    'kn-IN': 'Kannada (ಕನ್ನಡ)',
-    'ml-IN': 'Malayalam (മലയാളം)',
-    'pa-IN': 'Punjabi (ਪੰਜਾਬੀ)',
-    'or-IN': 'Odia (ଓଡ଼ିଆ)',
-    'as-IN': 'Assamese (অসমীয়া)',
-    'ur-IN': 'Urdu (اردو)',
-    'kok-IN': 'Konkani (कोंकणी)',
-    'ne-IN': 'Nepali (नेपाली)',
-    'sd-IN': 'Sindhi (سنڌي)',
-    'rathawi-IN': 'Rathawi',
-  };
+  static const Map<String, String> _languageNames = AnnouncementLanguages.languageNames;
 
-  String _getSimulatedMessage(String language, String name) {
-    return switch (language) {
-      'hi-IN' => '$name का फोन आ रहा है।',
-      'bn-IN' => '$name फोन করছেন।',
-      'te-IN' => '$name నుండి కాల్ వస్తోంది.',
-      'mr-IN' => '$name यांचा फोन येत आहे.',
-      'ta-IN' => '$name அழைக்கிறார்.',
-      'gu-IN' => '$name નો ફોન આવી રહ્યો છે.',
-      'kn-IN' => '$name ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ.',
-      'ml-IN' => '$name വിളിക്കുന്നു.',
-      'pa-IN' => '$name ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।',
-      'or-IN' => '$name ଙ୍କର ଫୋନ୍ ଆସୁଛି।',
-      'as-IN' => '$name ফোন কৰিছে।',
-      'ur-IN' => '$name کی کال آ رہی ہے۔',
-      'kok-IN' => '$name चो फोन येता.',
-      'ne-IN' || 'ne-NP' => '$name को फोन आउँदैछ।',
-      'sd-IN' => '$name جو فون اچي رهيو آهي.',
-      'rathawi-IN' => '$name न फोन आ रयो है।',
-      _ => 'Incoming call from $name.',
-    };
+  String _getSimulatedMessage(String language, Map<String, String> caller) {
+    final isUnknown = caller['tag'] == 'Unknown';
+    if (isUnknown) {
+      return AnnouncementLanguages.getUnknownAnnouncement(
+        language: language,
+        phoneNumber: caller['number'],
+      );
+    } else {
+      return AnnouncementLanguages.getContactAnnouncement(
+        language: language,
+        name: caller['name'] ?? 'Someone',
+      );
+    }
   }
 
   String _getRepeatLabel(String repeatMode) {
@@ -80,7 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _testLiveVoice(CallSettings settings) async {
     setState(() => _isPlayingPreview = true);
     final sample = _sampleCallers[_selectedSimulatedCallerIndex];
-    final message = _getSimulatedMessage(settings.language, sample['name']!);
+    final message = _getSimulatedMessage(settings.language, sample);
 
     final bridge = ref.read(nativeBridgeProvider);
     await bridge.previewAnnouncement(
@@ -702,7 +678,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required ColorScheme colorScheme,
   }) {
     final sample = _sampleCallers[_selectedSimulatedCallerIndex];
-    final previewSpeech = _getSimulatedMessage(settings.language, sample['name']!);
+    final previewSpeech = _getSimulatedMessage(settings.language, sample);
     final repeatLabel = _getRepeatLabel(settings.repeatMode);
 
     return Container(

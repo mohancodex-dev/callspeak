@@ -165,7 +165,7 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
     final allRules = allRulesAsync.value ?? [];
     final vipCount = allRules.where((r) => r.isVip).length;
     final mutedCount = allRules.where((r) => !r.isEnabled).length;
-    final customizedCount = allRules.where((r) => r.customText != '{name} is calling' || (r.repeatMode != 'three_times' && r.repeatMode != 'twice')).length;
+    final customizedCount = allRules.where((r) => r.isCustomized).length;
 
     return Scaffold(
       body: SafeArea(
@@ -353,7 +353,6 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
 
   Widget _buildGoogleContactCard(ContactRule contact, ThemeData theme, ColorScheme colorScheme) {
     final avatarColor = _avatarColors[contact.avatarColorIndex % _avatarColors.length];
-    final hasCustomText = contact.customText != '{name} is calling';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -476,13 +475,13 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
                           Expanded(
                             child: Text(
                               contact.isEnabled
-                                  ? (hasCustomText ? contact.customText : 'Default announcement (${contact.repeatMode})')
+                                  ? (contact.isCustomized ? contact.customText : 'Using Home Screen Language (${contact.repeatMode})')
                                   : 'Announcement Muted',
                               style: TextStyle(
                                 fontSize: 11.5,
-                                fontWeight: hasCustomText ? FontWeight.w600 : FontWeight.normal,
+                                fontWeight: contact.isCustomized ? FontWeight.w600 : FontWeight.normal,
                                 color: contact.isEnabled
-                                    ? (hasCustomText ? colorScheme.primary : theme.hintColor)
+                                    ? (contact.isCustomized ? colorScheme.primary : theme.hintColor)
                                     : Colors.redAccent,
                               ),
                               maxLines: 1,

@@ -14,6 +14,7 @@ class ContactRule {
   final bool bluetoothOnly;
   final bool isVip;
   final String relationshipTag; // 'general', 'family', 'work', 'friend', 'emergency'
+  final bool isCustomized; // True if individually personalized by user
 
   const ContactRule({
     required this.id,
@@ -29,6 +30,7 @@ class ContactRule {
     this.bluetoothOnly = false,
     this.isVip = false,
     this.relationshipTag = 'general',
+    this.isCustomized = false,
   });
 
   ContactRule copyWith({
@@ -45,6 +47,7 @@ class ContactRule {
     bool? bluetoothOnly,
     bool? isVip,
     String? relationshipTag,
+    bool? isCustomized,
   }) {
     return ContactRule(
       id: id ?? this.id,
@@ -60,6 +63,7 @@ class ContactRule {
       bluetoothOnly: bluetoothOnly ?? this.bluetoothOnly,
       isVip: isVip ?? this.isVip,
       relationshipTag: relationshipTag ?? this.relationshipTag,
+      isCustomized: isCustomized ?? this.isCustomized,
     );
   }
 
@@ -78,6 +82,7 @@ class ContactRule {
       'bluetoothOnly': bluetoothOnly,
       'isVip': isVip,
       'relationshipTag': relationshipTag,
+      'isCustomized': isCustomized,
     };
   }
 
@@ -98,6 +103,7 @@ class ContactRule {
       bluetoothOnly: map['bluetoothOnly'] as bool? ?? false,
       isVip: map['isVip'] as bool? ?? false,
       relationshipTag: map['relationshipTag']?.toString() ?? 'general',
+      isCustomized: map['isCustomized'] as bool? ?? false,
     );
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/contact_rule.dart';
 import '../../providers/contact_rule_provider.dart';
+import '../../../caller_announcement/providers/settings_provider.dart';
+import '../../../../core/constants/announcement_languages.dart';
 import '../widgets/ai_text_generator_sheet.dart';
 
 class ContactCustomizeScreen extends ConsumerStatefulWidget {
@@ -19,6 +21,7 @@ class ContactCustomizeScreen extends ConsumerStatefulWidget {
 class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen> {
   late TextEditingController _textController;
   late bool _isEnabled;
+  late bool _isCustomized;
   late String _language;
   late double _speechRate;
   late double _volume;
@@ -41,6 +44,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
   @override
   void initState() {
     super.initState();
+    _isCustomized = widget.contact.isCustomized;
     _textController = TextEditingController(text: widget.contact.customText);
     _isEnabled = widget.contact.isEnabled;
     _language = widget.contact.language;
@@ -68,17 +72,23 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
     _textController.selection = TextSelection.collapsed(
       offset: (selection.isValid ? selection.start : text.length) + tag.length,
     );
+    _isCustomized = true;
     setState(() {});
   }
 
-  Future<void> _playPreview() async {
+  Future<void> _playPreview(String globalLang) async {
     setState(() => _isPreviewPlaying = true);
-    final text = _textController.text.trim().replaceAll('{name}', widget.contact.name).replaceAll('{number}', widget.contact.phoneNumber);
+    final effectiveLang = _isCustomized ? _language : globalLang;
+    final text = _isCustomized
+        ? (_textController.text.trim().replaceAll('{name}', widget.contact.name).replaceAll('{number}', widget.contact.phoneNumber).isNotEmpty
+            ? _textController.text.trim().replaceAll('{name}', widget.contact.name).replaceAll('{number}', widget.contact.phoneNumber)
+            : AnnouncementLanguages.getContactAnnouncement(language: effectiveLang, name: widget.contact.name))
+        : AnnouncementLanguages.getContactAnnouncement(language: effectiveLang, name: widget.contact.name);
 
     final nativeBridge = ref.read(nativeBridgeProvider);
     await nativeBridge.previewAnnouncement(
-      text: text.isNotEmpty ? text : '${widget.contact.name} is calling',
-      language: _language,
+      text: text,
+      language: effectiveLang,
       speechRate: _speechRate,
       volume: _volume,
     );
@@ -101,6 +111,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
       bluetoothOnly: _bluetoothOnly,
       isVip: _isVip,
       relationshipTag: _relationshipTag,
+      isCustomized: _isCustomized,
     );
 
     ref.read(contactRulesProvider.notifier).saveRule(updatedRule);
@@ -122,6 +133,8 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final avatarColor = _avatarColors[widget.contact.avatarColorIndex % _avatarColors.length];
+    final globalSettings = ref.watch(settingsProvider).value;
+    final globalLanguage = globalSettings?.language ?? 'en-US';
 
     return Scaffold(
       appBar: AppBar(
@@ -158,7 +171,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                       child: Text(
                         widget.contact.name.isNotEmpty ? widget.contact.name[0].toUpperCase() : '?',
                         style: TextStyle(
-                          fontSize: 38,
+                          fontSize: 36,
                           fontWeight: FontWeight.bold,
                           color: avatarColor,
                         ),
@@ -174,7 +187,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                             color: Colors.amber,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.star_rounded, size: 16, color: Colors.black),
+                          child: const Icon(Icons.star_rounded, size: 20, color: Colors.white),
                         ),
                       ),
                   ],
@@ -199,7 +212,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                     _buildHeroAction(
                       icon: _isPreviewPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
                       label: _isPreviewPlaying ? 'Playing' : 'Preview',
-                      onTap: _playPreview,
+                      onTap: () => _playPreview(globalLanguage),
                       colorScheme: colorScheme,
                     ),
                     const SizedBox(width: 12),
@@ -235,77 +248,126 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primaryContainer,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.auto_awesome, color: colorScheme.primary, size: 18),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _isCustomized ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Custom Announcement',
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                          ),
+                        child: Icon(
+                          _isCustomized ? Icons.tune_rounded : Icons.language_rounded,
+                          color: _isCustomized ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                          size: 20,
                         ),
-                        FilledButton.tonalIcon(
-                          icon: const Icon(Icons.auto_awesome, size: 14),
-                          label: const Text('AI Suggest', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          style: FilledButton.styleFrom(
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          ),
-                          onPressed: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (_) => AiTextGeneratorSheet(
-                                contactName: widget.contact.name,
-                                currentText: _textController.text,
-                                onSelect: (newText) {
-                                  setState(() {
-                                    _textController.text = newText;
-                                  });
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _textController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText: '{name} is calling you',
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerHighest,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
                       ),
+                      title: Text(
+                        'Personalize for ${widget.contact.name}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      subtitle: Text(
+                        _isCustomized
+                            ? 'Custom announcement and language override active'
+                            : 'Using Home Screen Language (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})',
+                        style: TextStyle(fontSize: 12, color: theme.hintColor),
+                      ),
+                      value: _isCustomized,
+                      onChanged: (val) {
+                        setState(() {
+                          _isCustomized = val;
+                          if (val && (_textController.text.trim().isEmpty || _textController.text.trim() == '{name} is calling')) {
+                            _textController.text = AnnouncementLanguages.getContactAnnouncement(
+                              language: _language,
+                              name: '{name}',
+                            );
+                          }
+                        });
+                      },
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Text('Insert: ', style: TextStyle(fontSize: 12, color: theme.hintColor)),
-                        ActionChip(
-                          label: const Text('{name}'),
-                          shape: const StadiumBorder(),
-                          onPressed: () => _insertPlaceholder('{name}'),
+                    if (_isCustomized) ...[
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Custom Announcement Text',
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          FilledButton.tonalIcon(
+                            icon: const Icon(Icons.auto_awesome, size: 14),
+                            label: const Text('AI Suggest', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            style: FilledButton.styleFrom(
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            ),
+                            onPressed: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => AiTextGeneratorSheet(
+                                  contactName: widget.contact.name,
+                                  currentText: _textController.text,
+                                  onSelect: (newText) {
+                                    setState(() {
+                                      _textController.text = newText;
+                                      _isCustomized = true;
+                                    });
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _textController,
+                        maxLines: 2,
+                        onChanged: (_) {
+                          if (!_isCustomized) setState(() => _isCustomized = true);
+                        },
+                        decoration: InputDecoration(
+                          hintText: '{name} is calling you',
+                          filled: true,
+                          fillColor: colorScheme.surfaceContainerHighest,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
                         ),
-                        const SizedBox(width: 8),
-                        ActionChip(
-                          label: const Text('{number}'),
-                          shape: const StadiumBorder(),
-                          onPressed: () => _insertPlaceholder('{number}'),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Text('Insert: ', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                          ActionChip(
+                            label: const Text('{name}'),
+                            shape: const StadiumBorder(),
+                            onPressed: () => _insertPlaceholder('{name}'),
+                          ),
+                          const SizedBox(width: 8),
+                          ActionChip(
+                            label: const Text('{number}'),
+                            shape: const StadiumBorder(),
+                            onPressed: () => _insertPlaceholder('{number}'),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _isCustomized = false;
+                                _language = globalLanguage;
+                                _textController.text = AnnouncementLanguages.getContactAnnouncement(
+                                  language: globalLanguage,
+                                  name: '{name}',
+                                );
+                              });
+                            },
+                            child: const Text('Reset to Default', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -354,24 +416,27 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 leading: const Icon(Icons.language_rounded),
                 title: const Text('Spoken Language', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: !_isCustomized
+                    ? Text('Following Global (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})',
+                        style: TextStyle(fontSize: 12, color: theme.hintColor))
+                    : null,
                 trailing: DropdownButton<String>(
-                  value: _language,
+                  value: AnnouncementLanguages.languageNames.containsKey(_language) ? _language : globalLanguage,
                   underline: const SizedBox.shrink(),
                   borderRadius: BorderRadius.circular(18),
-                  items: const [
-                    DropdownMenuItem(value: 'en-US', child: Text('English (US)')),
-                    DropdownMenuItem(value: 'hi-IN', child: Text('Hindi (हिन्दी)')),
-                    DropdownMenuItem(value: 'bn-IN', child: Text('Bengali (বাংলা)')),
-                    DropdownMenuItem(value: 'te-IN', child: Text('Telugu (తెలుగు)')),
-                    DropdownMenuItem(value: 'mr-IN', child: Text('Marathi (मराठी)')),
-                    DropdownMenuItem(value: 'ta-IN', child: Text('Tamil (தமிழ்)')),
-                    DropdownMenuItem(value: 'gu-IN', child: Text('Gujarati (ગુજરાતી)')),
-                    DropdownMenuItem(value: 'kn-IN', child: Text('Kannada (ಕನ್ನಡ)')),
-                    DropdownMenuItem(value: 'pa-IN', child: Text('Punjabi (ਪੰਜਾਬੀ)')),
-                    DropdownMenuItem(value: 'ur-IN', child: Text('Urdu (اردو)')),
-                  ],
+                  items: AnnouncementLanguages.languageNames.entries.map((entry) {
+                    return DropdownMenuItem(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    );
+                  }).toList(),
                   onChanged: (val) {
-                    if (val != null) setState(() => _language = val);
+                    if (val != null) {
+                      setState(() {
+                        _language = val;
+                        _isCustomized = true;
+                      });
+                    }
                   },
                 ),
               ),

@@ -75,6 +75,7 @@ class ContactRulesNotifier extends AsyncNotifier<List<ContactRule>> {
             bluetoothOnly: false,
             isVip: false,
             relationshipTag: 'general',
+            isCustomized: false,
           ));
           colorIndex++;
           changed = true;
@@ -164,7 +165,7 @@ final filteredContactRulesProvider = Provider<List<ContactRule>>((ref) {
     // Filter match
     return switch (filter) {
       ContactFilter.all => true,
-      ContactFilter.customized => rule.customText != '{name} is calling' || (rule.repeatMode != 'three_times' && rule.repeatMode != 'twice') || rule.speechRate != 1.0,
+      ContactFilter.customized => rule.isCustomized,
       ContactFilter.vip => rule.isVip,
       ContactFilter.muted => !rule.isEnabled,
     };

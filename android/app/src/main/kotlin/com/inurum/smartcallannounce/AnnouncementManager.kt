@@ -177,10 +177,19 @@ object AnnouncementManager {
     private fun requestAudioFocus(context: Context): Boolean {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
         audioManager = am
+
+        val isBtConnected = isBluetoothAudioConnected(context)
+        val alsoSpeaker = SettingsHelper.isAlsoAnnounceOnSpeaker(context)
+        val focusUsage = if (isBtConnected && !alsoSpeaker) {
+            AudioAttributes.USAGE_MEDIA
+        } else {
+            AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+        }
+
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val playbackAttrs = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setUsage(focusUsage)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
                 val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
@@ -192,9 +201,11 @@ object AnnouncementManager {
                 am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             } else {
                 @Suppress("DEPRECATION")
+                val streamType = if (isBtConnected && !alsoSpeaker) AudioManager.STREAM_MUSIC else AudioManager.STREAM_RING
+                @Suppress("DEPRECATION")
                 am.requestAudioFocus(
                     null,
-                    AudioManager.STREAM_RING,
+                    streamType,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
                 ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
             }
@@ -206,6 +217,13 @@ object AnnouncementManager {
 
     private fun abandonAudioFocus() {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    audioManager?.clearCommunicationDevice()
+                } catch (e: Exception) {
+                    // ignore
+                }
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
                 audioFocusRequest = null
@@ -218,25 +236,89 @@ object AnnouncementManager {
         }
     }
 
-    private fun getLocalizedMessage(languageStr: String, name: String): String {
+    private fun formatPhoneNumberForSpeech(number: String?): String {
+        if (number.isNullOrBlank()) return ""
+        val sb = StringBuilder()
+        for (ch in number) {
+            if (ch.isDigit()) {
+                sb.append(ch).append(' ')
+            } else if (ch == '+') {
+                sb.append("+ ")
+            }
+        }
+        return sb.toString().trim()
+    }
+
+    private fun getUnknownCallerLabel(languageStr: String): String {
         return when (languageStr) {
-            "hi-IN" -> "$name का फोन आ रहा है।"
-            "bn-IN" -> "$name ফোন করছেন।"
-            "te-IN" -> "$name నుండి కాల్ వస్తోంది."
-            "mr-IN" -> "$name यांचा फोन येत आहे."
-            "ta-IN" -> "$name அழைக்கிறார்."
-            "gu-IN" -> "$name નો ફોન આવી રહ્યો છે."
-            "kn-IN" -> "$name ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ."
-            "ml-IN" -> "$name വിളിക്കുന്നു."
-            "pa-IN" -> "$name ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
-            "or-IN" -> "$name ଙ୍କର ଫୋନ୍ ଆସୁଛି।"
-            "as-IN" -> "$name ফোন কৰিছে।"
-            "ur-IN" -> "$name کی کال آ رہی ہے۔"
-            "kok-IN" -> "$name चो फोन येता."
-            "ne-IN", "ne-NP" -> "$name को फोन आउँदैछ।"
-            "sd-IN" -> "$name جو فون اچي رهيو آهي."
-            "rathawi-IN" -> "$name न फोन आ रयो है।"
-            else -> "Incoming call from $name."
+            "hi-IN" -> "अज्ञात नंबर"
+            "rathawi-IN" -> "अनजान नंबर"
+            "bn-IN" -> "অজানা নম্বর"
+            "te-IN" -> "తెలియని నంబర్"
+            "mr-IN" -> "अनोळखी नंबर"
+            "ta-IN" -> "தெரியாத எண்"
+            "gu-IN" -> "અજાણ્યો નંબર"
+            "kn-IN" -> "ಅಪರಿಚಿತ ಸಂಖ್ಯೆ"
+            "ml-IN" -> "അജ്ഞാത നമ്പർ"
+            "pa-IN" -> "ਅਣਜਾਣ ਨੰਬਰ"
+            "or-IN" -> "ଅଜଣା ନମ୍ବର"
+            "as-IN" -> "অচিনাকী নম্বৰ"
+            "ur-IN" -> "نامعلوم نمبر"
+            "kok-IN" -> "अनोळखी नंबर"
+            "ne-IN", "ne-NP" -> "अपरिचित नम्बर"
+            "sd-IN" -> "اڻڄাত نمبر"
+            else -> "Unknown Number"
+        }
+    }
+
+    private fun getLocalizedContactMessage(languageStr: String, name: String): String {
+        val contactName = if (name.trim().isNotEmpty()) name.trim() else "Someone"
+        return when (languageStr) {
+            "hi-IN" -> "$contactName का फोन आ रहा है।"
+            "rathawi-IN" -> "$contactName ने फोन आय रयो"
+            "bn-IN" -> "$contactName ফোন করছেন।"
+            "te-IN" -> "$contactName నుండి కాల్ వస్తోంది."
+            "mr-IN" -> "$contactName यांचा फोन येत आहे."
+            "ta-IN" -> "$contactName அழைக்கிறார்."
+            "gu-IN" -> "$contactName નો ફોન આવી રહ્યો છે."
+            "kn-IN" -> "$contactName ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ."
+            "ml-IN" -> "$contactName വിളിക്കുന്നു."
+            "pa-IN" -> "$contactName ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
+            "or-IN" -> "$contactName ଙ୍କର ଫୋନ୍ ଆସୁଛି।"
+            "as-IN" -> "$contactName ফোন কৰিছে।"
+            "ur-IN" -> "$contactName کی کال آ رہی ہے۔"
+            "kok-IN" -> "$contactName चो फोन येता."
+            "ne-IN", "ne-NP" -> "$contactName को फोन आउँदैछ।"
+            "sd-IN" -> "$contactName جو فون اچي رهيو آهي."
+            else -> "Incoming call from $contactName."
+        }
+    }
+
+    private fun getLocalizedUnknownMessage(languageStr: String, phoneNumber: String?): String {
+        val target = if (!phoneNumber.isNullOrBlank() && phoneNumber.trim() != "null") {
+            formatPhoneNumberForSpeech(phoneNumber)
+        } else {
+            getUnknownCallerLabel(languageStr)
+        }
+
+        return when (languageStr) {
+            "hi-IN" -> "$target का फोन आ रहा है।"
+            "rathawi-IN" -> "$target ने फोन आय रयो"
+            "bn-IN" -> "$target থেকে ফোন আসছে।"
+            "te-IN" -> "$target నుండి కాల్ వస్తోంది."
+            "mr-IN" -> "$target वरून फोन येत आहे."
+            "ta-IN" -> "$target இலிருந்து அழைப்பு வருகிறது."
+            "gu-IN" -> "$target નો ફોન આવી રહ્યો છે."
+            "kn-IN" -> "$target ಇಂದ ಕರೆ ಬರುತ್ತಿದೆ."
+            "ml-IN" -> "$target ൽ നിന്ന് കോൾ വരുന്നു."
+            "pa-IN" -> "$target ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
+            "or-IN" -> "$target ରୁ ଫୋନ୍ ଆସୁଛି।"
+            "as-IN" -> "$target ৰ পৰা ফোন আহিছে।"
+            "ur-IN" -> "$target سے کال آ رہی ہے۔"
+            "kok-IN" -> "$target चो फोन येता."
+            "ne-IN", "ne-NP" -> "$target बाट फोन आउँदैछ।"
+            "sd-IN" -> "$target مان ڪال اچي رهي آهي."
+            else -> "Incoming call from $target."
         }
     }
 
@@ -250,7 +332,8 @@ object AnnouncementManager {
         val speechRate: Float,
         val repeatMode: String,
         val bluetoothOnly: Boolean,
-        val isVip: Boolean
+        val isVip: Boolean,
+        val isCustomized: Boolean = false
     )
 
     data class ParsedCategoryRule(
@@ -279,6 +362,14 @@ object AnnouncementManager {
                               (last10Incoming.isNotEmpty() && last10Incoming == last10Rule)
 
                 if (matches) {
+                    val isCustomized = if (obj.has("isCustomized")) {
+                        obj.optBoolean("isCustomized", false)
+                    } else {
+                        val ct = obj.optString("customText", "")
+                        val ruleId = obj.optString("id", "")
+                        ct.isNotEmpty() && ct != "{name} is calling" && !ct.endsWith("is calling") && !ruleId.startsWith("contact_") && !ruleId.startsWith("device_")
+                    }
+
                     return ParsedContactRule(
                         name = obj.optString("name", "Unknown"),
                         phoneNumber = ruleNumber,
@@ -289,7 +380,8 @@ object AnnouncementManager {
                         speechRate = obj.optDouble("speechRate", 1.0).toFloat(),
                         repeatMode = obj.optString("repeatMode", "three_times").let { if (it == "twice") "three_times" else it },
                         bluetoothOnly = obj.optBoolean("bluetoothOnly", false),
-                        isVip = obj.optBoolean("isVip", false)
+                        isVip = obj.optBoolean("isVip", false),
+                        isCustomized = isCustomized
                     )
                 }
             }
@@ -392,11 +484,14 @@ object AnnouncementManager {
 
         val callerName = getCallerName(context, phoneNumber)
         val nameToAnnounce = callerName ?: "Unknown"
+        val globalLanguage = SettingsHelper.getLanguage(context)
+        val globalRepeatMode = SettingsHelper.getRepeatMode(context)
+        val globalSpeechRate = SettingsHelper.getSpeechRate(context)
 
         // 1. Check for specific ContactRule
         val contactRule = findContactRule(context, phoneNumber)
         if (contactRule != null) {
-            Log.d(TAG, "Found contact rule for ${contactRule.name} (enabled=${contactRule.isEnabled})")
+            Log.d(TAG, "Found contact rule for ${contactRule.name} (enabled=${contactRule.isEnabled}, isCustomized=${contactRule.isCustomized})")
             if (!contactRule.isEnabled) {
                 Log.d(TAG, "Announcement muted for contact ${contactRule.name}")
                 return
@@ -418,22 +513,37 @@ object AnnouncementManager {
                 }
             }
 
-            val customText = contactRule.customText
-                .replace("{name}", nameToAnnounce)
-                .replace("{number}", phoneNumber ?: "")
-            speak(
-                context = context,
-                text = customText,
-                languageStr = contactRule.language,
-                speechRate = contactRule.speechRate,
-                repeatMode = contactRule.repeatMode,
-                volume = contactRule.volume,
-                isTest = false
-            )
+            if (contactRule.isCustomized) {
+                // Contact was personalized by user! Apply their custom text and language override.
+                val customText = contactRule.customText
+                    .replace("{name}", nameToAnnounce)
+                    .replace("{number}", phoneNumber ?: "")
+                speak(
+                    context = context,
+                    text = customText,
+                    languageStr = contactRule.language,
+                    speechRate = contactRule.speechRate,
+                    repeatMode = contactRule.repeatMode,
+                    volume = contactRule.volume,
+                    isTest = false
+                )
+            } else {
+                // Not individually customized: dynamically use Home Screen language!
+                val text = getLocalizedContactMessage(globalLanguage, nameToAnnounce)
+                speak(
+                    context = context,
+                    text = text,
+                    languageStr = globalLanguage,
+                    speechRate = contactRule.speechRate,
+                    repeatMode = contactRule.repeatMode,
+                    volume = contactRule.volume,
+                    isTest = false
+                )
+            }
             return
         }
 
-        // 2. Check Category Rules
+        // 2. Check Category Rules & Unknown/Saved Callers
         val isUnknownNumber = callerName.isNullOrBlank()
         if (isUnknownNumber) {
             val unknownRule = getCategoryRule(context, "unknownNumbers")
@@ -449,17 +559,23 @@ object AnnouncementManager {
                     if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) return
                     if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) return
                 }
-                val text = unknownRule.template
-                    .replace("{name}", "Unknown")
-                    .replace("{number}", phoneNumber ?: "Unknown")
-                speak(
-                    context = context,
-                    text = text,
-                    repeatMode = unknownRule.repeatMode,
-                    isTest = false
-                )
-                return
+            } else {
+                if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) return
+                if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) return
+                if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) return
             }
+
+            val repeatMode = unknownRule?.repeatMode ?: globalRepeatMode
+            val text = getLocalizedUnknownMessage(globalLanguage, phoneNumber)
+            speak(
+                context = context,
+                text = text,
+                languageStr = globalLanguage,
+                speechRate = globalSpeechRate,
+                repeatMode = repeatMode,
+                isTest = false
+            )
+            return
         } else {
             val savedRule = getCategoryRule(context, "savedContacts")
             if (savedRule != null) {
@@ -474,39 +590,24 @@ object AnnouncementManager {
                     if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) return
                     if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) return
                 }
-                val text = savedRule.template
-                    .replace("{name}", nameToAnnounce)
-                    .replace("{number}", phoneNumber ?: "")
-                speak(
-                    context = context,
-                    text = text,
-                    repeatMode = savedRule.repeatMode,
-                    isTest = false
-                )
-                return
+            } else {
+                if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) return
+                if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) return
+                if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) return
             }
-        }
 
-        // 3. Fallback to Global Settings
-        if (SettingsHelper.isBluetoothOnly(context) && !isBluetoothAudioConnected(context)) {
-            Log.d(TAG, "Bluetooth only is ON, but no BT audio device connected")
+            val repeatMode = savedRule?.repeatMode ?: globalRepeatMode
+            val text = getLocalizedContactMessage(globalLanguage, nameToAnnounce)
+            speak(
+                context = context,
+                text = text,
+                languageStr = globalLanguage,
+                speechRate = globalSpeechRate,
+                repeatMode = repeatMode,
+                isTest = false
+            )
             return
         }
-
-        if (SettingsHelper.isSilenceInSilentMode(context) && isSilentOrVibrate(context)) {
-            Log.d(TAG, "Phone is in Silent/Vibrate mode and silenceInSilentMode is ON, skipping announcement")
-            return
-        }
-
-        if (SettingsHelper.isSilenceInDndMode(context) && isDndActive(context)) {
-            Log.d(TAG, "Phone is in DND mode and silenceInDndMode is ON, skipping announcement")
-            return
-        }
-
-        val languageStr = SettingsHelper.getLanguage(context)
-        val globalRepeatMode = SettingsHelper.getRepeatMode(context)
-        val announcementText = getLocalizedMessage(languageStr, nameToAnnounce)
-        speak(context, announcementText, repeatMode = globalRepeatMode, isTest = false)
     }
 
     fun onCallEnded(context: Context) {
@@ -720,7 +821,7 @@ object AnnouncementManager {
             return
         }
         val languageStr = SettingsHelper.getLanguage(context)
-        val announcementText = getLocalizedMessage(languageStr, "Test Caller")
+        val announcementText = getLocalizedContactMessage(languageStr, "Test Caller")
         speak(context, announcementText, isTest = true)
     }
 
@@ -785,13 +886,40 @@ object AnnouncementManager {
             }
             it.setSpeechRate(rate)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val isBtConnected = isBluetoothAudioConnected(context)
-                val alsoSpeaker = SettingsHelper.isAlsoAnnounceOnSpeaker(context)
+            val isBtConnected = isBluetoothAudioConnected(context)
+            val alsoSpeaker = SettingsHelper.isAlsoAnnounceOnSpeaker(context)
 
+            if (isBtConnected && !alsoSpeaker) {
+                try {
+                    audioManager?.isSpeakerphoneOn = false
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to disable speakerphone: ${e.message}")
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        val targetDevice = audioManager?.availableCommunicationDevices?.firstOrNull {
+                            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                            it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                            it.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
+                            it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                            it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                        }
+                        if (targetDevice != null) {
+                            audioManager?.setCommunicationDevice(targetDevice)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to set communication device: ${e.message}")
+                    }
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val usage = if (isBtConnected && !alsoSpeaker) {
-                    // Route strictly to Bluetooth headset; internal phone speaker stays silent
-                    AudioAttributes.USAGE_VOICE_COMMUNICATION
+                    // USAGE_MEDIA routes exclusively to connected Bluetooth/headset and never to internal phone speaker
+                    AudioAttributes.USAGE_MEDIA
                 } else {
                     // Ringtone stream routes to phone speaker (and also Bluetooth if connected and alsoSpeaker is true)
                     AudioAttributes.USAGE_NOTIFICATION_RINGTONE
@@ -969,27 +1097,45 @@ object AnnouncementManager {
     }
 
     private fun isBluetoothAudioConnected(context: Context): Boolean {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
 
+        // 1. Check AudioDeviceInfo on Android M+ (API 23+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
             for (device in devices) {
-                if (device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                    device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) {
-                    return true
+                when (device.type) {
+                    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                    AudioDeviceInfo.TYPE_BLE_HEADSET,
+                    AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                    AudioDeviceInfo.TYPE_USB_HEADSET,
+                    AudioDeviceInfo.TYPE_USB_DEVICE,
+                    AudioDeviceInfo.TYPE_HEARING_AID -> return true
                 }
             }
-        } else {
-            val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            val adapter = bluetoothManager.adapter
+        }
+
+        // 2. Fallback to AudioManager legacy flags
+        @Suppress("DEPRECATION")
+        if (audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn || audioManager.isWiredHeadsetOn) {
+            return true
+        }
+
+        // 3. Fallback to BluetoothAdapter profile connection states
+        try {
+            val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            val adapter = bluetoothManager?.adapter
             if (adapter != null && adapter.isEnabled) {
                 val a2dp = adapter.getProfileConnectionState(BluetoothProfile.A2DP) == BluetoothProfile.STATE_CONNECTED
                 val headset = adapter.getProfileConnectionState(BluetoothProfile.HEADSET) == BluetoothProfile.STATE_CONNECTED
-                return a2dp || headset
+                if (a2dp || headset) return true
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking bluetooth adapter state: ${e.message}")
         }
+
         return false
     }
 

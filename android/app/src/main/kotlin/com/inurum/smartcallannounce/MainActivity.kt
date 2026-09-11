@@ -12,8 +12,13 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import android.util.Log
 
 class MainActivity: FlutterActivity() {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     private val METHOD_CHANNEL = "com.inurum.smartcallannounce/methods"
     private val EVENT_CHANNEL = "com.inurum.smartcallannounce/events"
 
@@ -115,27 +120,45 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun isBluetoothAudioConnected(): Boolean {
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+
+        // 1. Check AudioDeviceInfo on Android M+ (API 23+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
             for (device in devices) {
-                if (device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                    device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) {
-                    return true
+                when (device.type) {
+                    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                    AudioDeviceInfo.TYPE_BLE_HEADSET,
+                    AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                    AudioDeviceInfo.TYPE_USB_HEADSET,
+                    AudioDeviceInfo.TYPE_USB_DEVICE,
+                    AudioDeviceInfo.TYPE_HEARING_AID -> return true
                 }
             }
-        } else {
-            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            val adapter = bluetoothManager.adapter
+        }
+
+        // 2. Fallback to AudioManager legacy flags
+        @Suppress("DEPRECATION")
+        if (audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn || audioManager.isWiredHeadsetOn) {
+            return true
+        }
+
+        // 3. Fallback to BluetoothAdapter profile connection states
+        try {
+            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            val adapter = bluetoothManager?.adapter
             if (adapter != null && adapter.isEnabled) {
                 val a2dp = adapter.getProfileConnectionState(BluetoothProfile.A2DP) == BluetoothProfile.STATE_CONNECTED
                 val headset = adapter.getProfileConnectionState(BluetoothProfile.HEADSET) == BluetoothProfile.STATE_CONNECTED
-                return a2dp || headset
+                if (a2dp || headset) return true
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking bluetooth adapter state: ${e.message}")
         }
+
         return false
     }
 

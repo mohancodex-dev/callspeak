@@ -104,6 +104,7 @@ class ContactRuleService {
         bluetoothOnly: false,
         isVip: true,
         relationshipTag: 'family',
+        isCustomized: false,
       ),
       const ContactRule(
         id: 'contact_2',
@@ -119,6 +120,7 @@ class ContactRuleService {
         bluetoothOnly: false,
         isVip: false,
         relationshipTag: 'work',
+        isCustomized: false,
       ),
       const ContactRule(
         id: 'contact_3',
@@ -134,6 +136,7 @@ class ContactRuleService {
         bluetoothOnly: false,
         isVip: true,
         relationshipTag: 'emergency',
+        isCustomized: false,
       ),
       const ContactRule(
         id: 'contact_4',
@@ -149,6 +152,7 @@ class ContactRuleService {
         bluetoothOnly: false,
         isVip: false,
         relationshipTag: 'friend',
+        isCustomized: false,
       ),
       const ContactRule(
         id: 'contact_5',
@@ -164,6 +168,7 @@ class ContactRuleService {
         bluetoothOnly: false,
         isVip: false,
         relationshipTag: 'general',
+        isCustomized: false,
       ),
     ];
   }
