@@ -2,11 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/contact_rule.dart';
 import '../../providers/contact_rule_provider.dart';
+import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/localization/app_strings.dart';
 
 class DefaultRulesScreen extends ConsumerWidget {
   const DefaultRulesScreen({super.key});
 
-  void _editCategoryRule(BuildContext context, WidgetRef ref, CategoryRule rule, Function(CategoryRule) onSave) {
+  String _getCategoryTitle(String id, String defaultTitle, AppStrings strings) {
+    return switch (id) {
+      'saved_contacts' => strings.savedContactsTitle,
+      'unknown_numbers' => strings.unknownNumbersTitle,
+      'vip_contacts' => strings.vipContactsTitle,
+      _ => defaultTitle,
+    };
+  }
+
+  String _getCategorySubtitle(String id, String defaultSubtitle, AppStrings strings) {
+    return switch (id) {
+      'saved_contacts' => strings.savedContactsSubtitle,
+      'unknown_numbers' => strings.unknownNumbersSubtitle,
+      'vip_contacts' => strings.vipContactsSubtitle,
+      _ => defaultSubtitle,
+    };
+  }
+
+  void _editCategoryRule(BuildContext context, WidgetRef ref, CategoryRule rule, Function(CategoryRule) onSave, AppStrings strings) {
     final templateCtrl = TextEditingController(text: rule.announcementTemplate);
     String repeatMode = (rule.repeatMode == 'twice') ? 'three_times' : rule.repeatMode;
     bool bluetoothOnly = rule.bluetoothOnly;
@@ -50,15 +70,15 @@ class DefaultRulesScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Edit Default Rule: ${rule.title}',
+                      '${strings.editCategoryRule}: ${_getCategoryTitle(rule.key, rule.title, strings)}',
                       style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    Text(rule.subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                    Text(_getCategorySubtitle(rule.key, rule.subtitle, strings), style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
                     const SizedBox(height: 16),
 
                     // Template Text
-                    Text('Announcement Template', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(strings.announcementTemplate, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 6),
                     TextField(
                       controller: templateCtrl,
@@ -71,29 +91,29 @@ class DefaultRulesScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
 
                     // Repeat Mode
-                    Text('Repeat Mode', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(strings.repeatMode, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
                         ChoiceChip(
-                          label: const Text('3 Times (Default)'),
+                          label: Text('${strings.repeatLabel3} (Default)'),
                           selected: repeatMode == 'three_times' || repeatMode == 'twice',
                           onSelected: (val) => setSheetState(() => repeatMode = 'three_times'),
                         ),
                         ChoiceChip(
-                          label: const Text('Until Answered'),
+                          label: Text(strings.repeatUntilAnswered),
                           selected: repeatMode == 'until_answered',
                           onSelected: (val) => setSheetState(() => repeatMode = 'until_answered'),
                         ),
                         ChoiceChip(
-                          label: const Text('2 Times'),
+                          label: Text(strings.repeatLabel2),
                           selected: repeatMode == 'two_times',
                           onSelected: (val) => setSheetState(() => repeatMode = 'two_times'),
                         ),
                         ChoiceChip(
-                          label: const Text('1 Time'),
+                          label: Text(strings.repeatLabel1),
                           selected: repeatMode == 'once',
                           onSelected: (val) => setSheetState(() => repeatMode = 'once'),
                         ),
@@ -102,13 +122,13 @@ class DefaultRulesScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
 
                     // Silent Mode Behavior
-                    Text('Silent & DND Mode Behavior', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(strings.silentModeBehavior, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: ChoiceChip(
-                            label: const Center(child: Text('Respect Silent')),
+                            label: Center(child: Text(strings.respectSilent)),
                             selected: silentBehavior == 'respect_silent',
                             onSelected: (val) => setSheetState(() => silentBehavior = 'respect_silent'),
                           ),
@@ -116,7 +136,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: ChoiceChip(
-                            label: const Center(child: Text('Bypass Silent')),
+                            label: Center(child: Text(strings.bypassSilent)),
                             selected: silentBehavior == 'bypass_silent',
                             onSelected: (val) => setSheetState(() => silentBehavior = 'bypass_silent'),
                           ),
@@ -135,8 +155,8 @@ class DefaultRulesScreen extends ConsumerWidget {
                     // Bluetooth Only
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Bluetooth / Headset Only'),
-                      subtitle: const Text('Only announce when wireless audio is connected'),
+                      title: Text(strings.bluetoothOnly),
+                      subtitle: Text(strings.bluetoothOnlyDesc),
                       value: bluetoothOnly,
                       onChanged: (val) => setSheetState(() => bluetoothOnly = val),
                     ),
@@ -162,7 +182,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: const Text('Save Category Rule', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(strings.saveCategoryRule, style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -180,10 +200,11 @@ class DefaultRulesScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final configAsync = ref.watch(categoryRulesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Default Category Rules', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(strings.categoryRulesTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: configAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -208,12 +229,12 @@ class DefaultRulesScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Category-Based Rules',
+                              strings.categoryRulesTitle,
                               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Define how calls are announced when an individual contact does not have a custom rule.',
+                              strings.categoryRulesSubtitle,
                               style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
                             ),
                           ],
@@ -232,6 +253,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 rule: config.savedContacts,
                 icon: Icons.contacts_rounded,
                 iconColor: Colors.blueAccent,
+                strings: strings,
                 onToggle: (val) {
                   ref.read(categoryRulesProvider.notifier).updateConfig(
                         config.copyWith(savedContacts: config.savedContacts.copyWith(isEnabled: val)),
@@ -240,7 +262,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 onEdit: () {
                   _editCategoryRule(context, ref, config.savedContacts, (updated) {
                     ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(savedContacts: updated));
-                  });
+                  }, strings);
                 },
               ),
               const SizedBox(height: 12),
@@ -252,6 +274,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 rule: config.unknownNumbers,
                 icon: Icons.help_outline_rounded,
                 iconColor: Colors.teal,
+                strings: strings,
                 onToggle: (val) {
                   ref.read(categoryRulesProvider.notifier).updateConfig(
                         config.copyWith(unknownNumbers: config.unknownNumbers.copyWith(isEnabled: val)),
@@ -260,7 +283,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 onEdit: () {
                   _editCategoryRule(context, ref, config.unknownNumbers, (updated) {
                     ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(unknownNumbers: updated));
-                  });
+                  }, strings);
                 },
               ),
               const SizedBox(height: 12),
@@ -272,6 +295,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 rule: config.spamCallers,
                 icon: Icons.warning_amber_rounded,
                 iconColor: Colors.deepOrange,
+                strings: strings,
                 onToggle: (val) {
                   ref.read(categoryRulesProvider.notifier).updateConfig(
                         config.copyWith(spamCallers: config.spamCallers.copyWith(isEnabled: val)),
@@ -280,7 +304,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 onEdit: () {
                   _editCategoryRule(context, ref, config.spamCallers, (updated) {
                     ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(spamCallers: updated));
-                  });
+                  }, strings);
                 },
               ),
               const SizedBox(height: 12),
@@ -292,6 +316,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 rule: config.vipContacts,
                 icon: Icons.star_rounded,
                 iconColor: Colors.amber.shade700,
+                strings: strings,
                 onToggle: (val) {
                   ref.read(categoryRulesProvider.notifier).updateConfig(
                         config.copyWith(vipContacts: config.vipContacts.copyWith(isEnabled: val)),
@@ -300,7 +325,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                 onEdit: () {
                   _editCategoryRule(context, ref, config.vipContacts, (updated) {
                     ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(vipContacts: updated));
-                  });
+                  }, strings);
                 },
               ),
               const SizedBox(height: 24),
@@ -319,6 +344,7 @@ class DefaultRulesScreen extends ConsumerWidget {
     required Color iconColor,
     required Function(bool) onToggle,
     required VoidCallback onEdit,
+    required AppStrings strings,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -353,11 +379,11 @@ class DefaultRulesScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        rule.title,
+                        _getCategoryTitle(rule.key, rule.title, strings),
                         style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Text(
-                        rule.subtitle,
+                        _getCategorySubtitle(rule.key, rule.subtitle, strings),
                         style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
                       ),
                     ],
@@ -377,7 +403,7 @@ class DefaultRulesScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Template:',
+                        '${strings.announcementTemplate}:',
                         style: TextStyle(fontSize: 11, color: theme.hintColor, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 2),
@@ -394,11 +420,11 @@ class DefaultRulesScreen extends ConsumerWidget {
                         spacing: 8,
                         runSpacing: 4,
                         children: [
-                          _buildBadge(theme, colorScheme, 'Repeat: ${rule.repeatMode == 'twice' ? '3 times' : rule.repeatMode.replaceAll('_', ' ')}'),
+                          _buildBadge(theme, colorScheme, '${strings.repeatMode}: ${rule.repeatMode == 'twice' || rule.repeatMode == 'three_times' ? strings.repeatLabel3 : (rule.repeatMode == 'until_answered' ? strings.repeatUntilAnswered : (rule.repeatMode == 'two_times' ? strings.repeatLabel2 : strings.repeatLabel1))}'),
                           if (rule.silentModeBehavior == 'bypass_silent')
-                            _buildBadge(theme, colorScheme, 'Bypasses Silent', color: Colors.amber.shade800),
+                            _buildBadge(theme, colorScheme, strings.bypassSilent, color: Colors.amber.shade800),
                           if (rule.bluetoothOnly)
-                            _buildBadge(theme, colorScheme, 'Bluetooth Only', color: Colors.blue),
+                            _buildBadge(theme, colorScheme, strings.bluetoothOnly, color: Colors.blue),
                         ],
                       ),
                     ],

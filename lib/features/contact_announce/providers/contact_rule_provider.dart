@@ -137,10 +137,23 @@ class ContactRulesNotifier extends AsyncNotifier<List<ContactRule>> {
   }
 
   Future<void> refreshFromDevice() async {
-    final currentList = state.value ?? [];
-    await _mergeWithDeviceContacts(currentList);
+    ref.read(isSyncingContactsProvider.notifier).setSyncing(true);
+    try {
+      final currentList = state.value ?? [];
+      await _mergeWithDeviceContacts(currentList);
+    } finally {
+      ref.read(isSyncingContactsProvider.notifier).setSyncing(false);
+    }
   }
 }
+
+class IsSyncingContactsNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void setSyncing(bool val) => state = val;
+}
+
+final isSyncingContactsProvider = NotifierProvider<IsSyncingContactsNotifier, bool>(IsSyncingContactsNotifier.new);
 
 final contactRulesProvider = AsyncNotifierProvider<ContactRulesNotifier, List<ContactRule>>(() {
   return ContactRulesNotifier();

@@ -6,8 +6,11 @@ import '../providers/bluetooth_status_provider.dart';
 import '../models/call_settings.dart';
 import '../../navigation/main_navigation_scaffold.dart';
 import '../../contact_announce/providers/contact_rule_provider.dart' hide nativeBridgeProvider;
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/announcement_languages.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/localization/app_localizations.dart';
+import '../../../core/localization/app_strings.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -29,7 +32,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   static const Map<String, String> _languageNames = AnnouncementLanguages.languageNames;
 
-  String _getSimulatedMessage(String language, Map<String, String> caller) {
+  String _getSampleCallerName(int index, AppStrings strings) {
+    return switch (index) {
+      0 => strings.vipContact,
+      1 => strings.savedContact,
+      2 => strings.officeColleague,
+      3 => strings.unknownNumber,
+      _ => strings.savedContact,
+    };
+  }
+
+  String _getSimulatedMessage(String language, Map<String, String> caller, [AppStrings? strings, int? index]) {
     final isUnknown = caller['tag'] == 'Unknown';
     if (isUnknown) {
       return AnnouncementLanguages.getUnknownAnnouncement(
@@ -37,35 +50,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         phoneNumber: caller['number'],
       );
     } else {
+      final name = (strings != null && index != null)
+          ? _getSampleCallerName(index, strings)
+          : (caller['name'] ?? 'Someone');
       return AnnouncementLanguages.getContactAnnouncement(
         language: language,
-        name: caller['name'] ?? 'Someone',
+        name: name,
       );
     }
   }
 
-  String _getRepeatLabel(String repeatMode) {
+  String _getRepeatLabel(String repeatMode, [AppStrings? strings]) {
+    final AppStrings s = strings ?? ref.read(appStringsProvider);
     return switch (repeatMode) {
-      'once' || '1' => '1 Time',
-      'two_times' || '2' => '2 Times',
-      'three_times' || '3_times' || '3' || 'twice' => '3 Times',
-      'until_answered' || 'continuous' => 'Until Answered',
-      _ => '3 Times',
+      'once' || '1' => s.repeatLabel1,
+      'two_times' || '2' => s.repeatLabel2,
+      'three_times' || '3_times' || '3' || 'twice' => s.repeatLabel3,
+      'until_answered' || 'continuous' => s.repeatUntilAnswered,
+      _ => s.repeatLabel3,
     };
   }
 
   Future<void> _testLiveVoice(CallSettings settings) async {
     final bridge = ref.read(nativeBridgeProvider);
+    final strings = ref.read(appStringsProvider);
     if (_isPlayingPreview) {
       await bridge.stopAnnouncement();
       if (mounted) {
         setState(() => _isPlayingPreview = false);
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Announcement preview stopped'),
+          SnackBar(
+            content: Text(strings.previewStopped),
             behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 1),
+            duration: const Duration(seconds: 1),
           ),
         );
       }
@@ -74,7 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     setState(() => _isPlayingPreview = true);
     final sample = _sampleCallers[_selectedSimulatedCallerIndex];
-    final message = _getSimulatedMessage(settings.language, sample);
+    final message = _getSimulatedMessage(settings.language, sample, strings, _selectedSimulatedCallerIndex);
 
     try {
       await bridge.previewAnnouncement(
@@ -108,12 +126,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Playing preview: "$message" (${_getRepeatLabel(settings.repeatMode)})'),
+          content: Text('${strings.playingPreview}: "$message" (${_getRepeatLabel(settings.repeatMode, strings)})'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           duration: Duration(seconds: repeatSeconds),
           action: SnackBarAction(
-            label: 'Stop',
+            label: strings.stopVoice,
             onPressed: () {
               bridge.stopAnnouncement();
               if (mounted) {
@@ -133,6 +151,209 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _handleToggleAnnouncement(
+    bool enable,
+    CallSettings settings,
+    bool permissionsGranted,
+  ) async {
+    final strings = ref.read(appStringsProvider);
+    if (!enable) {
+      // User turned toggle OFF
+      await ref.read(settingsProvider.notifier).updateSettings(
+            settings.copyWith(announcementEnabled: false),
+          );
+      await ref.read(nativeBridgeProvider).stopService();
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(strings.callerAnnouncementPaused),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    // User turned toggle ON
+    if (!permissionsGranted) {
+      final proceed = await _showPermissionRequiredDialog(strings);
+      if (proceed != true) {
+        // User dismissed/cancelled
+        return;
+      }
+
+      await ref.read(permissionStatusProvider.notifier).requestPermissions();
+      final nowGranted = ref.read(permissionStatusProvider);
+
+      if (!nowGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(strings.permissionsRequiredSnack),
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'Settings',
+                onPressed: () => openAppSettings(),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // Permissions are granted, activate service
+    await ref.read(settingsProvider.notifier).updateSettings(
+          settings.copyWith(announcementEnabled: true),
+        );
+    await ref.read(nativeBridgeProvider).startService();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 20),
+              const SizedBox(width: 8),
+              Text(strings.callerAnnouncerActivated),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<bool?> _showPermissionRequiredDialog([AppStrings? strings]) {
+    final AppStrings s = strings ?? ref.read(appStringsProvider);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: colorScheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          icon: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.security_rounded,
+              color: colorScheme.primary,
+              size: 28,
+            ),
+          ),
+          title: Text(
+            s.permissionsRequiredTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.permissionsRequiredDesc,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildPermissionItem(
+                icon: Icons.phone_in_talk_rounded,
+                iconColor: Colors.blueAccent,
+                title: s.phoneCallsState,
+                subtitle: s.phoneCallsStateDesc,
+              ),
+              const SizedBox(height: 12),
+              _buildPermissionItem(
+                icon: Icons.contacts_rounded,
+                iconColor: Colors.teal,
+                title: s.contactsAccess,
+                subtitle: s.contactsAccessDesc,
+              ),
+              const SizedBox(height: 12),
+              _buildPermissionItem(
+                icon: Icons.notifications_active_rounded,
+                iconColor: Colors.orange,
+                title: s.notificationsAudio,
+                subtitle: s.notificationsAudioDesc,
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: Text(s.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: Text(s.grantAllPermissions, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPermissionItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withAlpha(30),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant.withAlpha(200),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsAsyncValue = ref.watch(settingsProvider);
@@ -141,6 +362,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final allRulesAsync = ref.watch(contactRulesProvider);
     final smartConfigAsync = ref.watch(smartFeaturesProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final strings = ref.watch(appStringsProvider);
+    final currentAppLang = ref.watch(appLanguageProvider);
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -193,6 +416,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         actions: [
           IconButton.filledTonal(
+            tooltip: 'App Display Language (${_languageNames[currentAppLang] ?? currentAppLang})',
+            icon: const Icon(
+              Icons.translate_rounded,
+              size: 20,
+            ),
+            onPressed: () => _showAppLanguageSheet(context, ref, currentAppLang),
+          ),
+          const SizedBox(width: 4),
+          IconButton.filledTonal(
             tooltip: 'App Theme (Light/Dark/System)',
             icon: Icon(
               switch (themeMode) {
@@ -239,6 +471,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 bluetoothConnected: bluetoothConnected,
                 effectiveRepeat: effectiveRepeat,
                 isDark: isDark,
+                strings: strings,
               ),
               const SizedBox(height: 18),
 
@@ -256,6 +489,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 isAiActive: isAiActive,
                 permissionsGranted: permissionsGranted,
                 colorScheme: colorScheme,
+                strings: strings,
               ),
               const SizedBox(height: 22),
 
@@ -264,12 +498,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 settings: settings,
                 theme: theme,
                 colorScheme: colorScheme,
+                strings: strings,
               ),
               const SizedBox(height: 22),
 
               // 4. Repeat Announcement Policy (User's primary requirement!)
               _buildDashboardSectionHeader(
-                title: 'Announcement Repetition',
+                title: strings.repeatMode,
                 subtitle: 'How many times the caller name repeats aloud',
                 theme: theme,
                 colorScheme: colorScheme,
@@ -280,6 +515,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 effectiveRepeat: effectiveRepeat,
                 theme: theme,
                 colorScheme: colorScheme,
+                strings: strings,
               ),
               const SizedBox(height: 22),
 
@@ -296,6 +532,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 bluetoothConnected: bluetoothConnected,
                 theme: theme,
                 colorScheme: colorScheme,
+                strings: strings,
               ),
               const SizedBox(height: 22),
 
@@ -311,13 +548,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 settings: settings,
                 theme: theme,
                 colorScheme: colorScheme,
+                strings: strings,
               ),
               const SizedBox(height: 22),
 
               // 7. Voice Engine, Language & Speed
               _buildDashboardSectionHeader(
-                title: 'Voice Engine Configuration',
-                subtitle: 'Spoken dialect, speech speed, and pitch synthesis',
+                title: strings.speechSettings,
+                subtitle: strings.selectLanguage,
                 theme: theme,
                 colorScheme: colorScheme,
               ),
@@ -326,6 +564,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 settings: settings,
                 theme: theme,
                 colorScheme: colorScheme,
+                strings: strings,
+                currentAppLang: currentAppLang,
               ),
               const SizedBox(height: 22),
 
@@ -345,7 +585,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 26),
 
               // 9. Bottom Fast Shortcuts
-              _buildQuickShortcutsBanner(colorScheme: colorScheme),
+              _buildQuickShortcutsBanner(
+                colorScheme: colorScheme,
+                strings: strings,
+              ),
               const SizedBox(height: 24),
             ],
           );
@@ -401,6 +644,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required bool bluetoothConnected,
     required String effectiveRepeat,
     required bool isDark,
+    required AppStrings strings,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -474,7 +718,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Row(
                       children: [
                         Text(
-                          isEnabled ? 'Announcer Active' : 'Announcer Paused',
+                          isEnabled ? strings.announcerActive : strings.announcerPaused,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -496,8 +740,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(height: 2),
                     Text(
                       isEnabled
-                          ? 'Speaking caller name aloud for incoming calls'
-                          : 'Turn on to speak caller names automatically',
+                          ? strings.announcerActiveDesc
+                          : strings.announcerPausedDesc,
                       style: TextStyle(fontSize: 12, color: subTextColor, height: 1.3),
                     ),
                   ],
@@ -511,14 +755,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   activeTrackColor: const Color(0xFF38BDF8),
                   inactiveThumbColor: Colors.white70,
                   inactiveTrackColor: Colors.black26,
-                  onChanged: (val) {
-                    ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(announcementEnabled: val));
-                    if (val) {
-                      ref.read(nativeBridgeProvider).startService();
-                    } else {
-                      ref.read(nativeBridgeProvider).stopService();
-                    }
-                  },
+                  onChanged: (val) => _handleToggleAnnouncement(val, settings, permissionsGranted),
                 ),
               ),
             ],
@@ -532,7 +769,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               _buildHeroPill(
                 icon: permissionsGranted ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
-                label: permissionsGranted ? 'System Ready' : 'Permission Needed',
+                label: permissionsGranted ? strings.systemReady : strings.permissionNeeded,
                 bgColor: permissionsGranted
                     ? (isEnabled ? Colors.white.withAlpha(30) : Colors.green.withAlpha(30))
                     : Colors.amber.shade700.withAlpha(60),
@@ -541,17 +778,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     : Colors.amber.shade200,
                 onTap: permissionsGranted
                     ? null
-                    : () => ref.read(permissionStatusProvider.notifier).requestPermissions(),
+                    : () async {
+                        final proceed = await _showPermissionRequiredDialog(strings);
+                        if (proceed == true) {
+                          await ref.read(permissionStatusProvider.notifier).requestPermissions();
+                        }
+                      },
               ),
               _buildHeroPill(
                 icon: bluetoothConnected ? Icons.headphones_rounded : Icons.speaker_phone_rounded,
-                label: bluetoothConnected ? 'Headset Connected' : 'Phone Speaker',
+                label: bluetoothConnected ? strings.headsetConnected : strings.phoneSpeaker,
                 bgColor: isEnabled ? Colors.white.withAlpha(30) : (isDark ? Colors.white12 : Colors.black12),
                 contentColor: textColor,
               ),
               _buildHeroPill(
                 icon: Icons.repeat_rounded,
-                label: _getRepeatLabel(effectiveRepeat),
+                label: _getRepeatLabel(effectiveRepeat, strings),
                 bgColor: isEnabled ? Colors.white.withAlpha(30) : (isDark ? Colors.white12 : Colors.black12),
                 contentColor: textColor,
               ),
@@ -613,6 +855,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required bool isAiActive,
     required bool permissionsGranted,
     required ColorScheme colorScheme,
+    required AppStrings strings,
   }) {
     return Column(
       children: [
@@ -620,9 +863,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Expanded(
               child: _buildMetricTile(
-                title: '$totalContacts Contacts',
-                subtitle: '$vipCount VIP prioritized',
-                badgeText: 'Manage',
+                title: '$totalContacts ${strings.navContacts}',
+                subtitle: '$vipCount ${strings.filterVip}',
+                badgeText: strings.navContacts,
                 icon: Icons.contacts_rounded,
                 iconColor: const Color(0xFF0B57D0),
                 containerBg: colorScheme.surfaceContainerLowest,
@@ -636,9 +879,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildMetricTile(
-                title: 'Category Rules',
+                title: strings.navRules,
                 subtitle: '4 Voice profiles',
-                badgeText: 'Rules',
+                badgeText: strings.navRules,
                 icon: Icons.tune_rounded,
                 iconColor: Colors.deepPurple,
                 containerBg: colorScheme.surfaceContainerLowest,
@@ -656,9 +899,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Expanded(
               child: _buildMetricTile(
-                title: isAiActive ? 'AI Phonetics' : 'AI Offline',
-                subtitle: 'Smart Indian speech',
-                badgeText: 'Smart AI',
+                title: isAiActive ? strings.aiPhonetics : strings.aiOffline,
+                subtitle: strings.smartIndianSpeech,
+                badgeText: strings.navSmartAi,
                 icon: Icons.auto_awesome_rounded,
                 iconColor: Colors.amber.shade800,
                 containerBg: colorScheme.surfaceContainerLowest,
@@ -672,16 +915,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildMetricTile(
-                title: permissionsGranted ? 'Full Guard' : 'Needs Action',
-                subtitle: 'DND & Silent active',
-                badgeText: permissionsGranted ? 'Secure' : 'Fix',
+                title: permissionsGranted ? strings.fullGuard : strings.needsAction,
+                subtitle: strings.dndSilentActive,
+                badgeText: permissionsGranted ? strings.secure : strings.fix,
                 icon: Icons.security_rounded,
                 iconColor: permissionsGranted ? Colors.teal : Colors.orange,
                 containerBg: colorScheme.surfaceContainerLowest,
                 colorScheme: colorScheme,
                 onTap: permissionsGranted
                     ? null
-                    : () => ref.read(permissionStatusProvider.notifier).requestPermissions(),
+                    : () async {
+                        final proceed = await _showPermissionRequiredDialog(strings);
+                        if (proceed == true) {
+                          await ref.read(permissionStatusProvider.notifier).requestPermissions();
+                        }
+                      },
               ),
             ),
           ],
@@ -768,10 +1016,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required CallSettings settings,
     required ThemeData theme,
     required ColorScheme colorScheme,
+    required AppStrings strings,
   }) {
     final sample = _sampleCallers[_selectedSimulatedCallerIndex];
-    final previewSpeech = _getSimulatedMessage(settings.language, sample);
-    final repeatLabel = _getRepeatLabel(settings.repeatMode);
+    final previewSpeech = _getSimulatedMessage(settings.language, sample, strings, _selectedSimulatedCallerIndex);
+    final repeatLabel = _getRepeatLabel(settings.repeatMode, strings);
 
     return Container(
       decoration: BoxDecoration(
@@ -798,9 +1047,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Live Voice Simulator',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                    Text(
+                      strings.simulateIncomingCall,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                     ),
                     Text(
                       'Simulate incoming call to verify announcement output',
@@ -820,10 +1069,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: List.generate(_sampleCallers.length, (idx) {
                 final isSelected = _selectedSimulatedCallerIndex == idx;
                 final c = _sampleCallers[idx];
+                final localizedName = _getSampleCallerName(idx, strings);
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ChoiceChip(
-                    label: Text('${c['name']} (${c['tag']})'),
+                    label: Text('$localizedName (${c['tag']})'),
                     selected: isSelected,
                     onSelected: (val) {
                       if (val) {
@@ -903,7 +1153,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _isPlayingPreview ? Icons.stop_circle_rounded : Icons.play_circle_fill_rounded,
               ),
               label: Text(
-                _isPlayingPreview ? 'Stop Announcement Preview' : 'Play Voice Announcement Test',
+                _isPlayingPreview ? strings.stopVoice : strings.testVoice,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
               ),
               style: FilledButton.styleFrom(
@@ -925,6 +1175,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required String effectiveRepeat,
     required ThemeData theme,
     required ColorScheme colorScheme,
+    required AppStrings strings,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -951,7 +1202,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Repeat Count', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text(strings.repeatMode, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                     Text(
                       'Controls how many times caller names repeat during a call',
                       style: TextStyle(fontSize: 11.5, color: theme.hintColor),
@@ -970,7 +1221,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 avatar: effectiveRepeat == 'three_times'
                     ? const Icon(Icons.check, size: 16)
                     : null,
-                label: const Text('3 Times (Default)'),
+                label: Text('${strings.repeatLabel3} (Default)'),
                 selected: effectiveRepeat == 'three_times',
                 onSelected: (val) {
                   if (val) {
@@ -982,7 +1233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 avatar: effectiveRepeat == 'until_answered'
                     ? const Icon(Icons.check, size: 16)
                     : null,
-                label: const Text('Until Answered'),
+                label: Text(strings.repeatUntilAnswered),
                 selected: effectiveRepeat == 'until_answered',
                 onSelected: (val) {
                   if (val) {
@@ -994,7 +1245,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 avatar: effectiveRepeat == 'two_times'
                     ? const Icon(Icons.check, size: 16)
                     : null,
-                label: const Text('2 Times'),
+                label: Text(strings.repeatLabel2),
                 selected: effectiveRepeat == 'two_times',
                 onSelected: (val) {
                   if (val) {
@@ -1006,7 +1257,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 avatar: effectiveRepeat == 'once'
                     ? const Icon(Icons.check, size: 16)
                     : null,
-                label: const Text('1 Time'),
+                label: Text(strings.repeatLabel1),
                 selected: effectiveRepeat == 'once',
                 onSelected: (val) {
                   if (val) {
@@ -1033,7 +1284,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ? 'Announces 3 times with a 3-second natural gap between repetitions.'
                         : (effectiveRepeat == 'until_answered'
                             ? 'Repeats continuously until you answer or decline the call.'
-                            : 'Announces ${_getRepeatLabel(effectiveRepeat)} during ringing.'),
+                            : 'Announces ${_getRepeatLabel(effectiveRepeat, strings)} during ringing.'),
                     style: TextStyle(fontSize: 11.5, color: theme.hintColor),
                   ),
                 ),
@@ -1051,6 +1302,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required bool bluetoothConnected,
     required ThemeData theme,
     required ColorScheme colorScheme,
+    required AppStrings strings,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1070,11 +1322,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               child: const Icon(Icons.headphones_rounded, color: Colors.blue),
             ),
-            title: const Text('Bluetooth / Headset Only', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(strings.bluetoothOnly, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
               bluetoothConnected
                   ? 'Wireless audio connected — announcements will play'
-                  : 'Only announce when headphones or car audio is paired',
+                  : strings.bluetoothOnlyDesc,
               style: TextStyle(fontSize: 12, color: theme.hintColor),
             ),
             value: settings.announceOnlyWithBluetooth,
@@ -1093,9 +1345,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               child: const Icon(Icons.speaker_phone_rounded, color: Colors.teal),
             ),
-            title: const Text('Also Announce on Speaker', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(strings.speakerOutput, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
-              'Broadcast on internal phone speaker even if Bluetooth is paired',
+              strings.speakerOutputDesc,
               style: TextStyle(fontSize: 12, color: theme.hintColor),
             ),
             value: settings.alsoAnnounceOnSpeaker,
@@ -1113,6 +1365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required CallSettings settings,
     required ThemeData theme,
     required ColorScheme colorScheme,
+    required AppStrings strings,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1132,9 +1385,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               child: const Icon(Icons.volume_off_rounded, color: Colors.amber),
             ),
-            title: const Text('Silence in Silent / Vibrate Mode', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(strings.silenceInSilent, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
-              'Keep voice quiet when phone ringer is muted or vibrating',
+              strings.silenceInSilentDesc,
               style: TextStyle(fontSize: 12, color: theme.hintColor),
             ),
             value: settings.silenceInSilentMode,
@@ -1153,9 +1406,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               child: const Icon(Icons.do_not_disturb_on_rounded, color: Colors.redAccent),
             ),
-            title: const Text('Silence in Do Not Disturb (DND)', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(strings.silenceInDnd, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
-              'Remain completely quiet during active phone DND mode',
+              strings.silenceInDndDesc,
               style: TextStyle(fontSize: 12, color: theme.hintColor),
             ),
             value: settings.silenceInDndMode,
@@ -1173,6 +1426,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required CallSettings settings,
     required ThemeData theme,
     required ColorScheme colorScheme,
+    required AppStrings strings,
+    required String currentAppLang,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1182,6 +1437,65 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       child: Column(
         children: [
+          // 1. App UI Display Language
+          InkWell(
+            onTap: () => _showAppLanguageSheet(context, ref, currentAppLang),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withAlpha(20),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.translate_rounded, color: Colors.teal),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(strings.appLanguage, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_languageNames[currentAppLang] ?? currentAppLang} • ${strings.appLanguageDesc}',
+                          style: TextStyle(fontSize: 12, color: theme.hintColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withAlpha(100),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _languageNames[currentAppLang]?.split('(').first.trim() ?? currentAppLang,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 12, color: colorScheme.primary),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1, indent: 64),
+
+          // 2. Announcement Voice Language (Caller TTS)
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             leading: Container(
@@ -1190,11 +1504,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: Colors.purple.withAlpha(20),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.language_rounded, color: Colors.purple),
+              child: const Icon(Icons.record_voice_over_rounded, color: Colors.purple),
             ),
-            title: const Text('Spoken Language', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: Text(strings.announcementVoiceLanguage, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
-              _languageNames[settings.language] ?? settings.language,
+              '${_languageNames[settings.language] ?? settings.language} • ${strings.announcementVoiceDesc}',
               style: TextStyle(fontSize: 12, color: theme.hintColor),
             ),
             trailing: DropdownButton<String>(
@@ -1234,7 +1548,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           child: const Icon(Icons.speed_rounded, size: 18, color: Colors.deepOrange),
                         ),
                         const SizedBox(width: 10),
-                        const Text('Speech Speed', style: TextStyle(fontWeight: FontWeight.w700)),
+                        Text(strings.speechRate, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ],
                     ),
                     Container(
@@ -1275,6 +1589,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 8. Bottom Fast Shortcuts
   Widget _buildQuickShortcutsBanner({
     required ColorScheme colorScheme,
+    required AppStrings strings,
   }) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1302,7 +1617,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => ref.read(mainNavTabProvider.notifier).setTab(1),
                   icon: const Icon(Icons.contacts_rounded, size: 16),
-                  label: const Text('Contacts', style: TextStyle(fontSize: 12)),
+                  label: Text(strings.navContacts, style: const TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1314,7 +1629,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => ref.read(mainNavTabProvider.notifier).setTab(2),
                   icon: const Icon(Icons.tune_rounded, size: 16),
-                  label: const Text('Rules', style: TextStyle(fontSize: 12)),
+                  label: Text(strings.navRules, style: const TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1326,7 +1641,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => ref.read(mainNavTabProvider.notifier).setTab(3),
                   icon: const Icon(Icons.auto_awesome_rounded, size: 16),
-                  label: const Text('Smart AI', style: TextStyle(fontSize: 12)),
+                  label: Text(strings.navSmartAi, style: const TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1482,6 +1797,169 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showAppLanguageSheet(BuildContext context, WidgetRef ref, String currentLang) {
+    final sheetTheme = Theme.of(context);
+    final sheetColorScheme = sheetTheme.colorScheme;
+    final strings = ref.read(appStringsProvider);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: sheetTheme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: sheetTheme.dividerColor.withAlpha(120),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: sheetColorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.translate_rounded, color: sheetColorScheme.primary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.selectAppLanguage,
+                            style: sheetTheme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            strings.appLanguageDesc,
+                            style: TextStyle(fontSize: 12, color: sheetTheme.hintColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _languageNames.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final entry = _languageNames.entries.elementAt(index);
+                      final code = entry.key;
+                      final name = entry.value;
+                      final isSelected = code == currentLang;
+
+                      return InkWell(
+                        onTap: () {
+                          ref.read(appLanguageProvider.notifier).setLanguage(code);
+                          Navigator.pop(sheetCtx);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? sheetColorScheme.primaryContainer.withAlpha(120)
+                                : sheetColorScheme.surfaceContainerLowest,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? sheetColorScheme.primary
+                                  : sheetColorScheme.outlineVariant.withAlpha(40),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? sheetColorScheme.primary
+                                      : sheetColorScheme.surfaceContainerHigh,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  code.split('-').first.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected
+                                        ? sheetColorScheme.onPrimary
+                                        : sheetColorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                        color: isSelected
+                                            ? sheetColorScheme.primary
+                                            : sheetColorScheme.onSurface,
+                                      ),
+                                    ),
+                                    Text(
+                                      code,
+                                      style: TextStyle(fontSize: 12, color: sheetTheme.hintColor),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(Icons.check_circle_rounded, color: sheetColorScheme.primary, size: 22)
+                              else
+                                Icon(
+                                  Icons.radio_button_unchecked_rounded,
+                                  color: sheetTheme.hintColor.withAlpha(100),
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

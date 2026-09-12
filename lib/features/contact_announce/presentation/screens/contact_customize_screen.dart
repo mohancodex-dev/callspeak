@@ -5,6 +5,7 @@ import '../../providers/contact_rule_provider.dart';
 import '../../../caller_announcement/providers/settings_provider.dart';
 import '../../../../core/constants/announcement_languages.dart';
 import '../widgets/ai_text_generator_sheet.dart';
+import '../../../../core/localization/app_localizations.dart';
 
 class ContactCustomizeScreen extends ConsumerStatefulWidget {
   final ContactRule contact;
@@ -149,13 +150,14 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
     final avatarColor = _avatarColors[widget.contact.avatarColorIndex % _avatarColors.length];
     final globalSettings = ref.watch(settingsProvider).value;
     final globalLanguage = globalSettings?.language ?? 'en-US';
+    final strings = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contact Details'),
         actions: [
           IconButton(
-            tooltip: 'Delete custom rule',
+            tooltip: strings.delete,
             icon: const Icon(Icons.delete_outline_rounded),
             onPressed: () {
               ref.read(contactRulesProvider.notifier).deleteRule(widget.contact.id);
@@ -225,7 +227,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                   children: [
                     _buildHeroAction(
                       icon: _isPreviewPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                      label: _isPreviewPlaying ? 'Playing' : 'Preview',
+                      label: _isPreviewPlaying ? strings.playingPreview : strings.previewAnnouncement,
                       onTap: () => _playPreview(globalLanguage),
                       colorScheme: colorScheme,
                     ),
@@ -277,7 +279,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                         ),
                       ),
                       title: Text(
-                        'Personalize for ${widget.contact.name}',
+                        '${strings.personalizeFor} ${widget.contact.name}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       subtitle: Text(
@@ -305,13 +307,13 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                         children: [
                           Expanded(
                             child: Text(
-                              'Custom Announcement Text',
+                              strings.customAnnouncementText,
                               style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
                           FilledButton.tonalIcon(
                             icon: const Icon(Icons.auto_awesome, size: 14),
-                            label: const Text('AI Suggest', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            label: Text(strings.aiSuggest, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             style: FilledButton.styleFrom(
                               shape: const StadiumBorder(),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -503,8 +505,8 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
               SwitchListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                 secondary: const Icon(Icons.headphones_rounded),
-                title: const Text('Bluetooth / Headset Only', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Only speak when wireless earbuds or headset are connected'),
+                title: Text(strings.bluetoothOnly, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(strings.bluetoothOnlyDesc),
                 value: _bluetoothOnly,
                 onChanged: (val) => setState(() => _bluetoothOnly = val),
               ),
@@ -525,7 +527,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
           FilledButton.icon(
             onPressed: _saveChanges,
             icon: const Icon(Icons.check_rounded),
-            label: const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            label: Text(strings.saveChanges, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),

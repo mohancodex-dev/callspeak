@@ -59,6 +59,21 @@ class MainActivity: FlutterActivity() {
         return true
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1001) {
+            val allGranted = grantResults.isNotEmpty() && grantResults.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }
+            Log.d(TAG, "Native permissions request completed. All granted: $allGranted")
+            if (SettingsHelper.isAnnouncementEnabled(this)) {
+                startAnnouncerService()
+            }
+        }
+    }
+
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         

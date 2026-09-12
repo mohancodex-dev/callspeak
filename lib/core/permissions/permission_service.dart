@@ -36,4 +36,13 @@ class PermissionService {
     
     return phone && contacts && btConnect && btScan && nativeGranted;
   }
+
+  Future<bool> isContactsPermissionGranted() async {
+    return await Permission.contacts.isGranted;
+  }
+
+  Future<bool> requestContactsPermission() async {
+    final status = await Permission.contacts.request();
+    return status.isGranted;
+  }
 }
