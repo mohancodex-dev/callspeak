@@ -5,6 +5,7 @@ import '../../providers/contact_rule_provider.dart';
 import '../widgets/protected_template_field.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/localization/app_strings.dart';
+import '../../../smart_silent/presentation/screens/smart_silent_screen.dart';
 
 class DefaultRulesScreen extends ConsumerWidget {
   const DefaultRulesScreen({super.key});
@@ -260,6 +261,42 @@ class DefaultRulesScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
 
+              // Smart Silent Quick Access Card
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: colorScheme.outlineVariant.withAlpha(40)),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade700.withAlpha(25),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.schedule_rounded, color: Colors.amber.shade800, size: 24),
+                  ),
+                  title: Text(
+                    strings.smartSilentTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  subtitle: Text(
+                    strings.smartSilentSubtitle,
+                    style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SmartSilentScreen()),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // 1. Saved Contacts Card
               _buildCategoryCard(
                 context: context,
@@ -297,48 +334,6 @@ class DefaultRulesScreen extends ConsumerWidget {
                 onEdit: () {
                   _editCategoryRule(context, ref, config.unknownNumbers, (updated) {
                     ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(unknownNumbers: updated));
-                  }, strings);
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // 3. Spam Callers Card
-              _buildCategoryCard(
-                context: context,
-                ref: ref,
-                rule: config.spamCallers,
-                icon: Icons.warning_amber_rounded,
-                iconColor: Colors.deepOrange,
-                strings: strings,
-                onToggle: (val) {
-                  ref.read(categoryRulesProvider.notifier).updateConfig(
-                        config.copyWith(spamCallers: config.spamCallers.copyWith(isEnabled: val)),
-                      );
-                },
-                onEdit: () {
-                  _editCategoryRule(context, ref, config.spamCallers, (updated) {
-                    ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(spamCallers: updated));
-                  }, strings);
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // 4. VIP Contacts Card
-              _buildCategoryCard(
-                context: context,
-                ref: ref,
-                rule: config.vipContacts,
-                icon: Icons.star_rounded,
-                iconColor: Colors.amber.shade700,
-                strings: strings,
-                onToggle: (val) {
-                  ref.read(categoryRulesProvider.notifier).updateConfig(
-                        config.copyWith(vipContacts: config.vipContacts.copyWith(isEnabled: val)),
-                      );
-                },
-                onEdit: () {
-                  _editCategoryRule(context, ref, config.vipContacts, (updated) {
-                    ref.read(categoryRulesProvider.notifier).updateConfig(config.copyWith(vipContacts: updated));
                   }, strings);
                 },
               ),

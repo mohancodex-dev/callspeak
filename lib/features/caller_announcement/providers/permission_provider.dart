@@ -64,3 +64,27 @@ class PermissionNotifier extends Notifier<bool> {
     }
   }
 }
+
+class BluetoothPermissionNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    checkPermission();
+    return false;
+  }
+
+  Future<void> checkPermission() async {
+    final service = ref.read(permissionServiceProvider);
+    state = await service.isBluetoothPermissionGranted();
+  }
+
+  Future<bool> requestPermission() async {
+    final service = ref.read(permissionServiceProvider);
+    final granted = await service.requestBluetoothPermission();
+    state = granted;
+    return granted;
+  }
+}
+
+final bluetoothPermissionProvider = NotifierProvider<BluetoothPermissionNotifier, bool>(() {
+  return BluetoothPermissionNotifier();
+});

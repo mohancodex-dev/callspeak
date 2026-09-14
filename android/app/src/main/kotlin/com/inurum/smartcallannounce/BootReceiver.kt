@@ -17,7 +17,9 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent.action
         Log.d(TAG, "Received boot event: $action")
 
-        if (action == Intent.ACTION_BOOT_COMPLETED || action == "android.intent.action.QUICKBOOT_POWERON") {
+        if (action == Intent.ACTION_BOOT_COMPLETED || 
+            action == "android.intent.action.QUICKBOOT_POWERON" || 
+            action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             if (SettingsHelper.isAnnouncementEnabled(context)) {
                 Log.d(TAG, "Announcement is enabled, starting CallAnnounceService after boot")
                 val serviceIntent = Intent(context, CallAnnounceService::class.java)

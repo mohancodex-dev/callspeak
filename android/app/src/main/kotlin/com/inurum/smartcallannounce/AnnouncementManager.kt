@@ -77,17 +77,20 @@ object AnnouncementManager {
 
     fun acquireWakeLock(context: Context) {
         try {
-            if (wakeLock == null) {
-                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-                wakeLock = powerManager.newWakeLock(
-                    PowerManager.PARTIAL_WAKE_LOCK,
-                    "SmartCallAnnounce::CallWakeLock"
-                ).apply {
-                    setReferenceCounted(false)
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (powerManager != null) {
+                if (wakeLock == null) {
+                    val flags = PowerManager.PARTIAL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP
+                    wakeLock = powerManager.newWakeLock(
+                        flags,
+                        "SmartCallAnnounce::CallWakeLock"
+                    ).apply {
+                        setReferenceCounted(false)
+                    }
                 }
+                wakeLock?.acquire(60000L) // 60s safety timeout for ringing call
+                Log.d(TAG, "WakeLock acquired with ACQUIRE_CAUSES_WAKEUP")
             }
-            wakeLock?.acquire(45000L) // 45s safety timeout for ringing call
-            Log.d(TAG, "WakeLock acquired")
         } catch (e: Exception) {
             Log.e(TAG, "Error acquiring WakeLock: ${e.message}")
         }

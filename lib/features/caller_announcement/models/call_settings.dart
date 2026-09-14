@@ -8,14 +8,14 @@ class CallSettings {
   final double speechRate;
   final String repeatMode;
 
-  CallSettings({
-    required this.announcementEnabled,
-    required this.announceOnlyWithBluetooth,
+  const CallSettings({
+    this.announcementEnabled = false,
+    this.announceOnlyWithBluetooth = false,
     this.alsoAnnounceOnSpeaker = false,
     this.silenceInSilentMode = true,
     this.silenceInDndMode = true,
-    required this.language,
-    required this.speechRate,
+    this.language = 'en-US',
+    this.speechRate = 1.0,
     this.repeatMode = 'three_times',
   });
 

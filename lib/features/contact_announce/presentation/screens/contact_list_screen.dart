@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/contact_rule.dart';
 import '../../providers/contact_rule_provider.dart';
@@ -47,143 +48,35 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
     }
   }
 
+  final ScrollController _scrollController = ScrollController();
+  String? _activeAlphabetBubble;
+
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  void _showAddContactDialog([AppStrings? strings]) {
-    final AppStrings s = strings ?? ref.read(appStringsProvider);
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final customTextCtrl = TextEditingController(text: '{name} is calling');
-    bool isVip = false;
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            final theme = Theme.of(ctx);
-            final colorScheme = theme.colorScheme;
-
-            return AlertDialog(
-              backgroundColor: colorScheme.surfaceContainerHigh,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(Icons.person_add_rounded, color: colorScheme.primary, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(s.newContactRule, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: InputDecoration(
-                        labelText: s.name,
-                        prefixIcon: const Icon(Icons.person_outline_rounded),
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerLowest,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: s.phoneNumber,
-                        prefixIcon: const Icon(Icons.phone_outlined),
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerLowest,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: customTextCtrl,
-                      inputFormatters: const [
-                        MandatoryPlaceholderFormatter('{name}'),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: s.customAnnouncementText,
-                        hintText: '{name} is calling',
-                        prefixIcon: const Icon(Icons.record_voice_over_outlined),
-                        suffixIcon: Tooltip(
-                          message: '{name} is protected and cannot be deleted.',
-                          child: Icon(Icons.lock_rounded, size: 16, color: colorScheme.primary),
-                        ),
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerLowest,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: SwitchListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-                        secondary: const Icon(Icons.star_rounded, color: Colors.amber),
-                        title: Text(s.vipContact, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        value: isVip,
-                        onChanged: (val) => setDialogState(() => isVip = val),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogCtx),
-                  child: Text(s.cancel),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  ),
-                  onPressed: () {
-                    final name = nameCtrl.text.trim();
-                    final phone = phoneCtrl.text.trim();
-                    if (name.isEmpty || phone.isEmpty) return;
-
-                    final newRule = ContactRule(
-                      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
-                      name: name,
-                      phoneNumber: phone,
-                      avatarColorIndex: DateTime.now().millisecond % 6,
-                      isEnabled: true,
-                      customText: customTextCtrl.text.trim().isNotEmpty ? customTextCtrl.text.trim() : '$name is calling',
-                      isVip: isVip,
-                    );
-
-                    ref.read(contactRulesProvider.notifier).saveRule(newRule);
-                    Navigator.pop(dialogCtx);
-                  },
-                  child: Text(s.saveRule),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+  void _scrollToLetter(String letter, Map<String, int> letterIndices) {
+    final targetIdx = letterIndices[letter];
+    if (targetIdx != null && _scrollController.hasClients) {
+      HapticFeedback.selectionClick();
+      setState(() => _activeAlphabetBubble = letter);
+      final offset = (targetIdx * 78.0).clamp(0.0, _scrollController.position.maxScrollExtent);
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+      Future.delayed(const Duration(milliseconds: 700), () {
+        if (mounted && _activeAlphabetBubble == letter) {
+          setState(() => _activeAlphabetBubble = null);
+        }
+      });
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -396,98 +289,122 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
                 data: (_) {
                   if (filteredRules.isEmpty) {
                     if (!contactsGranted) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHighest,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(Icons.no_accounts_rounded, size: 48, color: colorScheme.primary),
-                              ),
-                              const SizedBox(height: 18),
-                              Text(
-                                strings.contactsPermissionRequired,
-                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                strings.contactsPermissionRequiredDesc,
-                                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 20),
-                              FilledButton.icon(
-                                onPressed: () => ref.read(contactsPermissionProvider.notifier).requestPermission(),
-                                icon: const Icon(Icons.lock_open_rounded, size: 18),
-                                label: Text(strings.grantPermission),
-                                style: FilledButton.styleFrom(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+                      return _buildPermissionDeniedState(theme, colorScheme, strings);
                     }
 
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.contacts_rounded, size: 48, color: colorScheme.primary),
-                            ),
-                            const SizedBox(height: 18),
-                            Text(
-                              _searchController.text.isNotEmpty
-                                  ? '${strings.noContactsFound} "${_searchController.text}"'
-                                  : strings.noContactsInList,
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              strings.tapSyncToReimport,
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 18),
-                            OutlinedButton.icon(
-                              onPressed: () => ref.read(contactRulesProvider.notifier).refreshFromDevice(),
-                              icon: const Icon(Icons.sync_rounded, size: 18),
-                              label: Text(strings.syncContacts),
-                              style: OutlinedButton.styleFrom(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
+                    if (_searchController.text.isNotEmpty) {
+                      return _buildEmptySearchState(theme, colorScheme, strings);
+                    }
+
+                    return _buildEmptyContactsState(theme, colorScheme, strings);
                   }
 
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    itemCount: filteredRules.length,
-                    itemBuilder: (context, index) {
-                      final contact = filteredRules[index];
-                      return _buildGoogleContactCard(contact, theme, colorScheme, strings);
-                    },
+                  // Build letter index map for fast jumping
+                  final Map<String, int> letterIndices = {};
+                  for (int i = 0; i < filteredRules.length; i++) {
+                    final name = filteredRules[i].name.trim();
+                    final first = name.isNotEmpty ? name[0].toUpperCase() : '#';
+                    final letter = RegExp(r'^[A-Z]$').hasMatch(first) ? first : '#';
+                    if (!letterIndices.containsKey(letter)) {
+                      letterIndices[letter] = i;
+                    }
+                  }
+
+                  const alphabetList = [
+                    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+                    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '#'
+                  ];
+
+                  final showFastScroll = filteredRules.length > 15;
+
+                  return Stack(
+                    children: [
+                      ListView.builder(
+                        controller: _scrollController,
+                        padding: EdgeInsets.only(
+                          left: 16.0,
+                          right: showFastScroll ? 36.0 : 16.0,
+                          top: 4.0,
+                          bottom: 80.0,
+                        ),
+                        itemCount: filteredRules.length,
+                        itemBuilder: (context, index) {
+                          final contact = filteredRules[index];
+                          return _buildGoogleContactCard(contact, theme, colorScheme, strings);
+                        },
+                      ),
+
+                      // Right-side Alphabet Jump Strip
+                      if (showFastScroll)
+                        Positioned(
+                          right: 2,
+                          top: 0,
+                          bottom: 70,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHigh.withAlpha(140),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: alphabetList.map((letter) {
+                                    final hasEntries = letterIndices.containsKey(letter);
+                                    return GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: hasEntries ? () => _scrollToLetter(letter, letterIndices) : null,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 1.5, horizontal: 4),
+                                        child: Text(
+                                          letter,
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: hasEntries ? FontWeight.w900 : FontWeight.w400,
+                                            color: hasEntries
+                                                ? colorScheme.primary
+                                                : theme.hintColor.withAlpha(90),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Centered Alphabet Bubble Indicator on Drag/Tap
+                      if (_activeAlphabetBubble != null)
+                        Center(
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.primary.withAlpha(90),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _activeAlphabetBubble!,
+                              style: const TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -495,10 +412,158 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddContactDialog(strings),
-        icon: const Icon(Icons.add_rounded),
-        label: Text(strings.addRule, style: const TextStyle(fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildPermissionDeniedState(ThemeData theme, ColorScheme colorScheme, AppStrings strings) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withAlpha(80),
+                shape: BoxShape.circle,
+                border: Border.all(color: colorScheme.primary.withAlpha(40), width: 2),
+              ),
+              child: Icon(Icons.security_rounded, size: 52, color: colorScheme.primary),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              strings.contactsPermissionRequired,
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              strings.contactsPermissionRequiredDesc,
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.withAlpha(20),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.withAlpha(60)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.verified_user_rounded, size: 16, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text(
+                    '100% On-Device & Private',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => ref.read(contactsPermissionProvider.notifier).requestPermission(),
+              icon: const Icon(Icons.lock_open_rounded, size: 20),
+              label: Text(strings.grantPermission, style: const TextStyle(fontWeight: FontWeight.bold)),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySearchState(ThemeData theme, ColorScheme colorScheme, AppStrings strings) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.search_off_rounded, size: 48, color: theme.hintColor),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              '${strings.noContactsFound} "${_searchController.text}"',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Check your spelling or search by phone number',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                ref.read(contactSearchProvider.notifier).state = '';
+              },
+              icon: const Icon(Icons.clear_all_rounded, size: 18),
+              label: const Text('Clear Search'),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyContactsState(ThemeData theme, ColorScheme colorScheme, AppStrings strings) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.contact_phone_outlined, size: 48, color: colorScheme.primary),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              strings.noContactsInList,
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              strings.tapSyncToReimport,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            FilledButton.tonalIcon(
+              onPressed: () => ref.read(contactRulesProvider.notifier).refreshFromDevice(),
+              icon: const Icon(Icons.sync_rounded, size: 18),
+              label: Text(strings.syncContacts),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

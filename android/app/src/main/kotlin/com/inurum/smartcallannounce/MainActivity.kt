@@ -3,10 +3,14 @@ package com.inurum.smartcallannounce
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.Intent
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.ContactsContract
+import android.provider.Settings
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -117,6 +121,144 @@ class MainActivity: FlutterActivity() {
                 "stopAnnouncement" -> {
                     AnnouncementManager.stopAnnouncement()
                     result.success(true)
+                }
+                "isBatteryOptimizationIgnored" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                        result.success(powerManager?.isIgnoringBatteryOptimizations(packageName) ?: true)
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } else {
+                            result.success(false)
+                        }
+                    } catch (e: Exception) {
+                        try {
+                            val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(fallbackIntent)
+                            result.success(true)
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "Error opening battery settings: ${e2.message}")
+                            result.success(false)
+                        }
+                    }
+                }
+                "openTtsSettings" -> {
+                    try {
+                        val intent = Intent("com.android.settings.TTS_SETTINGS").apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        try {
+                            val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(fallbackIntent)
+                            result.success(true)
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "Error opening TTS settings: ${e2.message}")
+                            result.success(false)
+                        }
+                    }
+                }
+                "openBatterySettings" -> {
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+                "setRingerMode" -> {
+                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                    val mode = call.argument<String>("mode") ?: "normal"
+
+                    if (audioManager != null) {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                if (notificationManager?.isNotificationPolicyAccessGranted == true) {
+                                    when (mode) {
+                                        "silent" -> audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
+                                        "vibrate" -> audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                                        else -> audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                                    }
+                                    result.success(true)
+                                } else {
+                                    // If not granted, vibrate is usually permissible without DND policy on many devices
+                                    if (mode == "vibrate") {
+                                        audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                                        result.success(true)
+                                    } else {
+                                        result.success(false)
+                                    }
+                                }
+                            } else {
+                                when (mode) {
+                                    "silent" -> audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
+                                    "vibrate" -> audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                                    else -> audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                                }
+                                result.success(true)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error setting ringer mode: ${e.message}")
+                            result.success(false)
+                        }
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "getRingerMode" -> {
+                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    val ringer = when (audioManager?.ringerMode) {
+                        AudioManager.RINGER_MODE_SILENT -> "silent"
+                        AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+                        else -> "normal"
+                    }
+                    result.success(ringer)
+                }
+                "isDndAccessGranted" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                        result.success(notificationManager?.isNotificationPolicyAccessGranted == true)
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "openDndSettings" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        try {
+                            val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error opening DND settings: ${e.message}")
+                            result.success(false)
+                        }
+                    } else {
+                        result.success(true)
+                    }
                 }
                 else -> {
                     result.notImplemented()

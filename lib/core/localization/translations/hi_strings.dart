@@ -160,6 +160,65 @@ class HiStrings extends AppStrings {
   String get callerAnnouncerActivated => 'कॉलर अनाउंसर चालू हो गया!';
   @override
   String get callerAnnouncementPaused => 'कॉलर अनाउंसर बंद कर दिया गया';
+  @override
+  String get permissionsPrivacyBadge =>
+      '🔒 100% सुरक्षित और फोन पर ही सीमित: आपका कॉल या कॉन्टैक्ट डेटा कभी भी किसी सर्वर पर नहीं भेजा जाता।';
+
+  // Background Reliability & Battery Saver Prominent Disclosure (Hindi)
+  @override
+  String get batteryDisclosureTitle => 'बैकग्राउंड में सही चलने की अनुमति दें';
+  @override
+  String get batteryDisclosureSubtitle =>
+      'स्क्रीन लॉक होने पर भी कॉलर का नाम बोलें';
+  @override
+  String get batteryDisclosureMessage =>
+      'जब आपका फोन लॉक हो या जेब में हो, तब भी कॉलर का नाम बिना किसी रुकावट के तुरंत बोलने के लिए CallSpeak को बैटरी सेवर प्रतिबंधों से छूट की आवश्यकता है।';
+  @override
+  String get batteryDisclosureOemWarning =>
+      'Xiaomi, Samsung, Vivo, Oppo और OnePlus फोन में बैटरी सेवर स्क्रीन बंद होने पर ऐप को बंद कर सकता है।';
+  @override
+  String get batteryDisclosureBullet1 =>
+      'केवल कॉल आने पर बोलता है (बैटरी बिल्कुल खर्च नहीं होती)';
+  @override
+  String get batteryDisclosureBullet2 =>
+      '100% सुरक्षित — कॉन्टैक्ट और कॉल डेटा फोन पर ही रहता है';
+  @override
+  String get batteryDisclosureAllow => 'अनुमति दें (ज़रूरी)';
+  @override
+  String get batteryDisclosureLater => 'बाद में';
+  @override
+  String get batteryOptimizationActive => 'बैटरी सेवर से छूट चालू है';
+  @override
+  String get batteryOptimizationNotActive =>
+      'स्क्रीन लॉक होने पर नाम बोलने के लिए अनुमति दें';
+
+  // OEM Background & Auto-Start Guide (Hindi)
+  @override
+  String get oemGuideTitle => 'बैकग्राउंड और ऑटो-स्टार्ट सेटिंग्स';
+  @override
+  String get oemGuideDesc =>
+      'फोन लॉक होने पर भी बिना रुके नाम बोलने के लिए अपने फोन में यह सेटिंग्स चेक करें:';
+  @override
+  String get oemStep1Title => '1. बैटरी को \'नो रिस्ट्रिक्शन\' (Unrestricted) करें';
+  @override
+  String get oemStep1Desc =>
+      'बैटरी सेटिंग्स में \'Don\'t optimize\' या \'कोई प्रतिबंध नहीं\' चुनें।';
+  @override
+  String get oemStep2Title => '2. ऑटो-स्टार्ट (Auto-start) चालू करें';
+  @override
+  String get oemStep2Desc =>
+      'Xiaomi, Vivo या Oppo फोन में CallSpeak को ऑटो-स्टार्ट की परमिशन दें।';
+  @override
+  String get oemOpenSettings => 'ऐप सेटिंग्स खोलें';
+
+  // DND Access Disclosure (Hindi)
+  @override
+  String get dndDisclosureTitle => 'डू नॉट डिस्टर्ब (DND) की अनुमति दें';
+  @override
+  String get dndDisclosureDesc =>
+      'मीटिंग या तय समय पर फोन को अपने आप साइलेंट करने और समय खत्म होने पर नॉर्मल करने के लिए DND एक्सेस जरूरी है।';
+  @override
+  String get dndDisclosureOpen => 'DND सेटिंग्स खोलें';
 
   @override
   String get simulateIncomingCall => 'कॉल आवाज टेस्ट करें';
@@ -307,4 +366,46 @@ class HiStrings extends AppStrings {
   @override
   String get smartEarbudDesc =>
       'ईयरफोन लगे होने पर फोन स्पीकर को शांत रखता है।';
+
+  // Smart Silent
+  @override
+  String get smartSilentTitle => 'स्मार्ट साइलेंट';
+  @override
+  String get smartSilentSubtitle => 'मीटिंग, ऑफिस और नींद के लिए ऑटो साइलेंट';
+  @override
+  String get smartSilentDesc =>
+      'समय और लोकेशन के अनुसार फोन को अपने आप साइलेंट और नॉर्मल करता है।';
+  @override
+  String get addSchedule => 'नया शेड्यूल जोड़ें';
+  @override
+  String get editSchedule => 'शेड्यूल बदलें';
+  @override
+  String get scheduleTitleLabel => 'शेड्यूल का नाम';
+  @override
+  String get startTimeLabel => 'शुरू होने का समय (ऑटो साइलेंट 🔕)';
+  @override
+  String get endTimeLabel => 'खत्म होने का समय (ऑटो नॉर्मल 🔔)';
+  @override
+  String get autoSilentIndicator => 'ऑटो साइलेंट';
+  @override
+  String get autoNormalIndicator => 'ऑटो नॉर्मल';
+  @override
+  String get locationTriggerOptional => 'लोकेशन आधारित साइलेंट (वैकल्पिक)';
+  @override
+  String get locationTriggerDesc => 'शेड्यूल के समय इस जगह पहुंचने पर फोन साइलेंट रहेगा';
+  @override
+  String get locationNameLabel => 'स्थान का नाम (जैसे ऑफिस, मीटिंग रूम)';
+  @override
+  String get locationRadiusLabel => 'लोकेशन दायरा';
+  @override
+  String get dndAccessNeeded => 'ऑटोमैटिक साइलेंट मोड के लिए DND परमिशन जरूरी है।';
+  @override
+  String get grantDndAccess => 'DND परमिशन दें';
+  @override
+  String get activeNow => 'अभी चालू है';
+  @override
+  String get currentlySilenced => 'फोन अभी साइलेंट पर है';
+  @override
+  String get normalActive => 'नॉर्मल मोड';
 }
+

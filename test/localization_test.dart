@@ -187,6 +187,35 @@ void main() {
       expect(container.read(appLanguageProvider), equals('en-US'));
       expect(container.read(appStringsProvider).navHome, equals('Home'));
     });
+
+    test('Prominent Disclosures and Permission dialog strings are valid in English and Hindi', () {
+      final en = AppLocalizations.of('en-US');
+      final hi = AppLocalizations.of('hi-IN');
+
+      // Privacy Badge
+      expect(en.permissionsPrivacyBadge.contains('100% Private & Safe'), isTrue);
+      expect(hi.permissionsPrivacyBadge.contains('100% सुरक्षित'), isTrue);
+
+      // Battery Saver Prominent Disclosure
+      expect(en.batteryDisclosureTitle, equals('Allow Background Reliability'));
+      expect(hi.batteryDisclosureTitle, equals('बैकग्राउंड में सही चलने की अनुमति दें'));
+      expect(en.batteryDisclosureMessage.isNotEmpty, isTrue);
+      expect(hi.batteryDisclosureMessage.isNotEmpty, isTrue);
+      expect(en.batteryDisclosureOemWarning.contains('Xiaomi'), isTrue);
+      expect(hi.batteryDisclosureOemWarning.contains('Xiaomi'), isTrue);
+      expect(en.batteryDisclosureAllow, equals('Allow (Recommended)'));
+      expect(hi.batteryDisclosureAllow, equals('अनुमति दें (ज़रूरी)'));
+
+      // OEM Setup Guide
+      expect(en.oemGuideTitle, equals('Background & Auto-Start Setup'));
+      expect(hi.oemGuideTitle, equals('बैकग्राउंड और ऑटो-स्टार्ट सेटिंग्स'));
+      expect(en.oemOpenSettings, equals('Open App Settings'));
+      expect(hi.oemOpenSettings, equals('ऐप सेटिंग्स खोलें'));
+
+      // DND Access Disclosure
+      expect(en.dndDisclosureTitle, equals('Allow Do Not Disturb Access'));
+      expect(hi.dndDisclosureTitle, equals('डू नॉट डिस्टर्ब (DND) की अनुमति दें'));
+    });
   });
 }
 

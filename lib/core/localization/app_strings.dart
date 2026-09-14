@@ -91,6 +91,43 @@ class AppStrings {
       'Please allow permissions to speak caller names.';
   String get callerAnnouncerActivated => 'Caller Announcer turned ON!';
   String get callerAnnouncementPaused => 'Caller Announcer turned OFF';
+  String get permissionsPrivacyBadge =>
+      '🔒 100% Private & Safe: All call details and contacts stay strictly on your phone. No data is ever collected, stored, or uploaded.';
+
+  // Background Reliability & Battery Saver Prominent Disclosure
+  String get batteryDisclosureTitle => 'Allow Background Reliability';
+  String get batteryDisclosureSubtitle =>
+      'Keep announcing caller names when screen is off or locked';
+  String get batteryDisclosureMessage =>
+      'To announce caller names without delay when your phone is locked or screen is turned off, CallSpeak requires exemption from battery restrictions.';
+  String get batteryDisclosureOemWarning =>
+      'On Xiaomi, Samsung, Vivo, Oppo & OnePlus devices, battery saver will silence incoming call announcements unless unrestricted.';
+  String get batteryDisclosureBullet1 =>
+      'Speaks only during incoming calls (zero idle battery drain)';
+  String get batteryDisclosureBullet2 =>
+      '100% private — caller info never leaves your phone';
+  String get batteryDisclosureAllow => 'Allow (Recommended)';
+  String get batteryDisclosureLater => 'Not Now';
+  String get batteryOptimizationActive => 'Exempt (Reliable)';
+  String get batteryOptimizationNotActive => 'Restricted (May miss calls)';
+
+  // OEM Background & Auto-Start Guide
+  String get oemGuideTitle => 'Background & Auto-Start Setup';
+  String get oemGuideDesc =>
+      'To ensure CallSpeak never misses a call when your phone is sleeping, check these 2 settings:';
+  String get oemStep1Title => '1. Battery Restriction';
+  String get oemStep1Desc =>
+      'Set Battery usage to "Unrestricted" or "Don\'t optimize".';
+  String get oemStep2Title => '2. Auto-Start / Background Activity';
+  String get oemStep2Desc =>
+      'Turn ON "Auto-start" or "Allow background activity" (Xiaomi, Vivo, Oppo, OnePlus).';
+  String get oemOpenSettings => 'Open App Settings';
+
+  // DND Access Disclosure
+  String get dndDisclosureTitle => 'Allow Do Not Disturb Access';
+  String get dndDisclosureDesc =>
+      'Smart Silent needs Do Not Disturb permission to automatically silence your phone during meetings or quiet hours, and restore normal ringtone when done.';
+  String get dndDisclosureOpen => 'Open DND Settings';
 
   // Live Preview & Simulation
   String get simulateIncomingCall => 'Test Voice Announcement';
@@ -158,7 +195,7 @@ class AppStrings {
   String get bypassSilent => 'Speak Even in Silent';
   String get saveCategoryRule => 'Save Rule';
 
-  // Smart Features Screen
+  // Smart Features Screen (Legacy / Optional)
   String get smartFeaturesTitle => 'Smart AI & Features';
   String get smartFeaturesBannerTitle => 'Smart Voice Assistant';
   String get smartFeaturesBannerDesc =>
@@ -178,4 +215,57 @@ class AppStrings {
   String get smartEarbudTitle => 'Earphones Private Mode';
   String get smartEarbudDesc =>
       'Keeps speaker muted when earphones or Bluetooth are plugged in.';
+
+  // Settings & Help
+  String get navSettings => 'Settings';
+  String get settingsTitle => 'Settings & Help';
+  String get ttsEngineTitle => 'Text-to-Speech Engine';
+  String get openSystemTts => 'System TTS Settings';
+  String get openSystemTtsDesc => 'Install Google Speech Services or regional voices';
+  String get batteryOptimizationTitle => 'Background Reliability';
+  String get batteryOptimizationDesc => 'Keep CallSpeak running smoothly when screen is locked';
+  String get disableBatteryOpt => 'Exempt from Battery Saver';
+  String get troubleshootingTitle => 'Troubleshooting & FAQ';
+  String get privacyPolicyTitle => 'Privacy Policy';
+  String get termsOfService => 'Terms of Service';
+  String get aboutTitle => 'About CallSpeak';
+  String get version => 'Version';
+  String get rateApp => 'Rate on Play Store';
+  String get shareApp => 'Share CallSpeak';
+  String get feedback => 'Send Feedback';
+
+  // Onboarding
+  String get onboardingWelcomeTitle => 'Know Who is Calling';
+  String get onboardingWelcomeDesc => 'CallSpeak announces caller names aloud so you never have to scramble for your phone.';
+  String get onboardingTestVoice => 'Listen to Voice Sample';
+  String get onboardingPermissionsTitle => '100% Private & On-Device';
+  String get onboardingPermissionsDesc => 'All caller information is processed locally on your device. Zero data is ever collected or uploaded.';
+  String get onboardingGrantPermissions => 'Grant Required Permissions';
+  String get onboardingBatteryTitle => 'Runs Reliably in Background';
+  String get onboardingBatteryDesc => 'Allow background activity without battery restrictions to announce calls while phone is locked.';
+  String get onboardingGetStarted => 'Get Started';
+  String get onboardingNext => 'Next';
+  String get onboardingSkip => 'Skip';
+
+  // Smart Silent
+  String get smartSilentTitle => 'Smart Silent';
+  String get smartSilentSubtitle => 'Automate quiet hours for meetings, office & sleep';
+  String get smartSilentDesc => 'Automatically silences your phone and restores normal mode based on schedule and location';
+  String get addSchedule => 'Add Schedule';
+  String get editSchedule => 'Edit Schedule';
+  String get scheduleTitleLabel => 'Schedule Name';
+  String get startTimeLabel => 'Start Time (Auto Silent 🔕)';
+  String get endTimeLabel => 'End Time (Auto Normal 🔔)';
+  String get autoSilentIndicator => 'Silent automatically';
+  String get autoNormalIndicator => 'Normal automatically';
+  String get locationTriggerOptional => 'Location Trigger (Optional)';
+  String get locationTriggerDesc => 'Silences when at this location during the scheduled time';
+  String get locationNameLabel => 'Location Name (e.g. Office, Meeting Room)';
+  String get locationRadiusLabel => 'Trigger Radius';
+  String get dndAccessNeeded => 'Do Not Disturb access is required to automate system silent mode.';
+  String get grantDndAccess => 'Grant DND Access';
+  String get activeNow => 'Active Now';
+  String get currentlySilenced => 'Phone currently silenced';
+  String get normalActive => 'Normal Mode';
 }
+

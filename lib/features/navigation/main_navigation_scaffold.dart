@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../caller_announcement/presentation/home_screen.dart';
 import '../contact_announce/presentation/screens/contact_list_screen.dart';
 import '../contact_announce/presentation/screens/default_rules_screen.dart';
-import '../contact_announce/presentation/screens/smart_features_screen.dart';
+import '../settings/presentation/screens/settings_screen.dart';
 
 import '../caller_announcement/providers/permission_provider.dart';
 import '../contact_announce/providers/contact_rule_provider.dart';
@@ -31,7 +31,7 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
     HomeScreen(),
     ContactListScreen(),
     DefaultRulesScreen(),
-    SmartFeaturesScreen(),
+    SettingsScreen(),
   ];
 
   @override
@@ -98,9 +98,9 @@ class _MainNavigationScaffoldState extends ConsumerState<MainNavigationScaffold>
               label: strings.navRules,
             ),
             NavigationDestination(
-              icon: const Icon(Icons.auto_awesome_outlined),
-              selectedIcon: const Icon(Icons.auto_awesome_rounded),
-              label: strings.navSmartAi,
+              icon: const Icon(Icons.settings_outlined),
+              selectedIcon: const Icon(Icons.settings_rounded),
+              label: strings.navSettings,
             ),
           ],
         ),

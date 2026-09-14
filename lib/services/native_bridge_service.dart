@@ -104,7 +104,7 @@ class NativeBridgeService {
     }
   }
 
-  Future<bool> stopAnnouncement() async {
+    Future<bool> stopAnnouncement() async {
     try {
       final result = await _methodChannel.invokeMethod<bool>('stopAnnouncement');
       return result ?? false;
@@ -113,4 +113,85 @@ class NativeBridgeService {
       return false;
     }
   }
+
+  Future<bool> isBatteryOptimizationIgnored() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('isBatteryOptimizationIgnored');
+      return result ?? true;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to check battery optimization: '${e.message}'.");
+      return true;
+    }
+  }
+
+  Future<bool> requestIgnoreBatteryOptimizations() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('requestIgnoreBatteryOptimizations');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to request battery optimization exemption: '${e.message}'.");
+      return false;
+    }
+  }
+
+  Future<bool> openTtsSettings() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('openTtsSettings');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to open TTS settings: '${e.message}'.");
+      return false;
+    }
+  }
+
+  Future<bool> openBatterySettings() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('openBatterySettings');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to open battery settings: '${e.message}'.");
+      return false;
+    }
+  }
+
+  Future<bool> setRingerMode(String mode) async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('setRingerMode', {'mode': mode});
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to set ringer mode: '$e'.");
+      return false;
+    }
+  }
+
+  Future<String> getRingerMode() async {
+    try {
+      final result = await _methodChannel.invokeMethod<String>('getRingerMode');
+      return result ?? 'normal';
+    } catch (e) {
+      debugPrint("Failed to get ringer mode: '$e'.");
+      return 'normal';
+    }
+  }
+
+  Future<bool> isDndAccessGranted() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('isDndAccessGranted');
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to check DND access: '$e'.");
+      return false;
+    }
+  }
+
+  Future<bool> openDndSettings() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('openDndSettings');
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to open DND settings: '$e'.");
+      return false;
+    }
+  }
 }
+

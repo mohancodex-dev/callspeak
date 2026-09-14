@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/navigation/main_navigation_scaffold.dart';
+import 'features/onboarding/presentation/onboarding_screen.dart';
+import 'features/onboarding/providers/onboarding_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -164,7 +166,9 @@ class SmartCallAnnounceApp extends ConsumerWidget {
         ),
       ),
       themeMode: themeMode,
-      home: const MainNavigationScaffold(),
+      home: ref.watch(onboardingCompletedProvider)
+          ? const MainNavigationScaffold()
+          : const OnboardingScreen(),
     );
   }
 }
