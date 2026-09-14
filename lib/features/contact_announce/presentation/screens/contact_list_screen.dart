@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/contact_rule.dart';
 import '../../providers/contact_rule_provider.dart';
-import '../widgets/protected_template_field.dart';
 import 'contact_customize_screen.dart';
 import '../../../caller_announcement/providers/permission_provider.dart';
 import '../../../../core/localization/app_localizations.dart';

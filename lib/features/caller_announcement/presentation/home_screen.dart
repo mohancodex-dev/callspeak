@@ -45,6 +45,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  void _simulateIncomingCall(CallSettings settings, [Object? _]) {
+    _testLiveVoice(settings);
+  }
+
   Future<void> _testLiveVoice(CallSettings settings) async {
     final bridge = ref.read(nativeBridgeProvider);
     final strings = ref.read(appStringsProvider);

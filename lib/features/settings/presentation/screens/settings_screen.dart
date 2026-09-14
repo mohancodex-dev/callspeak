@@ -7,7 +7,7 @@ import '../../../../services/native_bridge_service.dart';
 import '../widgets/faq_sheet.dart';
 import '../widgets/privacy_policy_sheet.dart';
 import '../widgets/oem_guide_dialog.dart';
-import '../../caller_announcement/presentation/widgets/background_reliability_dialog.dart';
+import '../../../caller_announcement/presentation/widgets/background_reliability_dialog.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

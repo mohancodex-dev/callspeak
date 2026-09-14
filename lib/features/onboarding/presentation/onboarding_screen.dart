@@ -6,7 +6,7 @@ import '../../caller_announcement/providers/permission_provider.dart';
 import '../../caller_announcement/presentation/widgets/background_reliability_dialog.dart';
 import '../../navigation/main_navigation_scaffold.dart';
 import '../../../services/native_bridge_service.dart';
-import '../../../core/localization/app_strings.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../providers/onboarding_provider.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
