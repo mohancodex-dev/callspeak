@@ -14,6 +14,7 @@ class DefaultRulesScreen extends ConsumerWidget {
       'saved_contacts' => strings.savedContactsTitle,
       'unknown_numbers' => strings.unknownNumbersTitle,
       'vip_contacts' => strings.vipContactsTitle,
+      'spam_callers' => strings.spamCallersTitle,
       _ => defaultTitle,
     };
   }
@@ -23,6 +24,7 @@ class DefaultRulesScreen extends ConsumerWidget {
       'saved_contacts' => strings.savedContactsSubtitle,
       'unknown_numbers' => strings.unknownNumbersSubtitle,
       'vip_contacts' => strings.vipContactsSubtitle,
+      'spam_callers' => strings.spamCallersSubtitle,
       _ => defaultSubtitle,
     };
   }
@@ -150,8 +152,10 @@ class DefaultRulesScreen extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       silentBehavior == 'respect_silent'
-                          ? 'Muted when phone is in silent, vibrate, or DND mode.'
-                          : 'Forces announcement even when phone is on Silent or DND.',
+                          ? strings.silenceInSilentDesc
+                          : (strings.languageCode.startsWith('hi')
+                              ? 'फोन साइलेंट या DND में होने पर भी नाम बोलेगा।'
+                              : 'Speaks caller name even when phone is on Silent or DND.'),
                       style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
                     ),
                     const SizedBox(height: 16),

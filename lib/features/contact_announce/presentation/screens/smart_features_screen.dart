@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/contact_rule_provider.dart';
+import '../../../../core/localization/app_localizations.dart';
 
 class SmartFeaturesScreen extends ConsumerWidget {
   const SmartFeaturesScreen({super.key});
@@ -10,10 +11,11 @@ class SmartFeaturesScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final smartConfigAsync = ref.watch(smartFeaturesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Smart AI & Features', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(strings.smartFeaturesTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: smartConfigAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -45,12 +47,12 @@ class SmartFeaturesScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Intelligent Assistant',
+                            strings.smartFeaturesBannerTitle,
                             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Advanced voice algorithms, VIP priority routing, and personalized caller announcements.',
+                            strings.smartFeaturesBannerDesc,
                             style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
                           ),
                         ],
@@ -61,7 +63,7 @@ class SmartFeaturesScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
 
-              Text('Smart Capabilities', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+              Text(strings.smartFeaturesTitle, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary)),
               const SizedBox(height: 8),
 
               // Grouped Pixel Container for Smart Features
@@ -72,8 +74,8 @@ class SmartFeaturesScreen extends ConsumerWidget {
                   _buildFeatureTile(
                     icon: Icons.psychology_rounded,
                     iconColor: Colors.deepPurple,
-                    title: 'AI Announcement Assistant',
-                    subtitle: 'Generates personalized, context-aware call announcements based on relationship and urgency.',
+                    title: strings.smartAiAnnounceTitle,
+                    subtitle: strings.smartAiAnnounceDesc,
                     value: config.aiSuggestionsEnabled,
                     onChanged: (val) {
                       ref.read(smartFeaturesProvider.notifier).updateConfig(
@@ -87,8 +89,8 @@ class SmartFeaturesScreen extends ConsumerWidget {
                   _buildFeatureTile(
                     icon: Icons.spellcheck_rounded,
                     iconColor: Colors.teal,
-                    title: 'Phonetic Name Assistant',
-                    subtitle: 'Optimizes Indian & international name pronunciations for clearer Text-To-Speech speech synthesis.',
+                    title: strings.smartPhoneticTitle,
+                    subtitle: strings.smartPhoneticDesc,
                     value: config.phoneticNameRecognition,
                     onChanged: (val) {
                       ref.read(smartFeaturesProvider.notifier).updateConfig(
@@ -102,8 +104,8 @@ class SmartFeaturesScreen extends ConsumerWidget {
                   _buildFeatureTile(
                     icon: Icons.star_rounded,
                     iconColor: Colors.amber.shade800,
-                    title: 'VIP Caller Priority Bypass',
-                    subtitle: 'Allows emergency and VIP contacts to announce aloud even when phone is on Silent or DND.',
+                    title: strings.smartVipTitle,
+                    subtitle: strings.smartVipDesc,
                     value: config.vipBypassSilent,
                     onChanged: (val) {
                       ref.read(smartFeaturesProvider.notifier).updateConfig(
@@ -117,8 +119,8 @@ class SmartFeaturesScreen extends ConsumerWidget {
                   _buildFeatureTile(
                     icon: Icons.shield_rounded,
                     iconColor: Colors.redAccent,
-                    title: 'Spam Caller Voice Warning',
-                    subtitle: 'Audibly prefixes "Warning: Suspected spam call!" before reading out telemarketer numbers.',
+                    title: strings.smartSpamTitle,
+                    subtitle: strings.smartSpamDesc,
                     value: config.spamWarningAlert,
                     onChanged: (val) {
                       ref.read(smartFeaturesProvider.notifier).updateConfig(
@@ -132,8 +134,8 @@ class SmartFeaturesScreen extends ConsumerWidget {
                   _buildFeatureTile(
                     icon: Icons.headphones_rounded,
                     iconColor: Colors.blueAccent,
-                    title: 'Earbud Private Mode',
-                    subtitle: 'When Bluetooth headphones are connected, automatically keep internal speaker muted.',
+                    title: strings.smartEarbudTitle,
+                    subtitle: strings.smartEarbudDesc,
                     value: config.earbudContextAware,
                     onChanged: (val) {
                       ref.read(smartFeaturesProvider.notifier).updateConfig(

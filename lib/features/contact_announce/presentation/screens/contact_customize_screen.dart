@@ -148,7 +148,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Contact Details'),
+        title: Text(strings.languageCode.startsWith('hi') ? 'कॉन्टैक्ट सेटिंग्स' : 'Contact Settings'),
         actions: [
           IconButton(
             tooltip: strings.delete,
@@ -278,8 +278,12 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                       ),
                       subtitle: Text(
                         _isCustomized
-                            ? 'Custom announcement and language override active'
-                            : 'Using Home Screen Language (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})',
+                            ? (strings.languageCode.startsWith('hi')
+                                ? 'अलग मैसेज और भाषा चालू'
+                                : 'Custom message & language active')
+                            : (strings.languageCode.startsWith('hi')
+                                ? 'डिफ़ॉल्ट भाषा (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})'
+                                : 'Default language (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})'),
                         style: TextStyle(fontSize: 12, color: theme.hintColor),
                       ),
                       value: _isCustomized,
@@ -367,7 +371,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Repeat Mode', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(strings.repeatMode, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     SegmentedButton<String>(
                       segments: const [
@@ -398,9 +402,12 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 leading: const Icon(Icons.language_rounded),
-                title: const Text('Spoken Language', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text(strings.announcementVoiceLanguage, style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: !_isCustomized
-                    ? Text('Following Global (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})',
+                    ? Text(
+                        strings.languageCode.startsWith('hi')
+                            ? 'डिफ़ॉल्ट (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})'
+                            : 'Default (${AnnouncementLanguages.languageNames[globalLanguage] ?? globalLanguage})',
                         style: TextStyle(fontSize: 12, color: theme.hintColor))
                     : null,
                 trailing: DropdownButton<String>(
@@ -432,7 +439,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Volume', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(strings.languageCode.startsWith('hi') ? 'वॉल्यूम (आवाज)' : 'Volume', style: const TextStyle(fontWeight: FontWeight.w600)),
                         Text('${(_volume * 100).toInt()}%', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
                       ],
                     ),
@@ -447,7 +454,7 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Speech Speed', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(strings.speechRate, style: const TextStyle(fontWeight: FontWeight.w600)),
                         Text('${_speechRate.toStringAsFixed(1)}x', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
                       ],
                     ),
@@ -481,8 +488,8 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
               SwitchListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                 secondary: const Icon(Icons.star_rounded, color: Colors.amber),
-                title: const Text('VIP Priority Caller', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Always announce aloud even if phone is in Silent or DND mode'),
+                title: Text(strings.smartVipTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(strings.smartVipDesc),
                 value: _isVip,
                 onChanged: (val) => setState(() => _isVip = val),
               ),

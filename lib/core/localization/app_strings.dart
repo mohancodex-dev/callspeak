@@ -10,130 +10,172 @@ class AppStrings {
   String get navSmartAi => 'Smart AI';
 
   // Hero & Status
-  String get announcerActive => 'Announcer Active';
-  String get announcerPaused => 'Announcer Paused';
-  String get announcerActiveDesc => 'Speaking caller name aloud for incoming calls';
-  String get announcerPausedDesc => 'Turn on to speak caller names automatically';
-  String get systemReady => 'System Ready';
+  String get announcerActive => 'Announcer ON';
+  String get announcerPaused => 'Announcer OFF';
+  String get announcerActiveDesc => 'Speaks caller name when phone rings';
+  String get announcerPausedDesc => 'Turn ON to speak caller names automatically';
+  String get systemReady => 'Ready';
   String get permissionNeeded => 'Permission Needed';
-  String get headsetConnected => 'Headset Connected';
+  String get headsetConnected => 'Earphones Connected';
   String get phoneSpeaker => 'Phone Speaker';
   String get repeatLabel1 => '1 Time';
   String get repeatLabel2 => '2 Times';
   String get repeatLabel3 => '3 Times';
   String get repeatUntilAnswered => 'Until Answered';
 
-  // Metric Tiles
-  String get aiPhonetics => 'AI Phonetics';
-  String get aiOffline => 'AI Offline';
-  String get smartIndianSpeech => 'Smart Indian speech';
-  String get fullGuard => 'Full Guard';
-  String get needsAction => 'Needs Action';
-  String get secure => 'Secure';
+  // Metric Tiles & Section Headers
+  String get aiPhonetics => 'AI Voice';
+  String get aiOffline => 'Voice Offline';
+  String get smartIndianSpeech => 'Clear Indian voice';
+  String get fullGuard => 'Fully Protected';
+  String get needsAction => 'Action Needed';
+  String get secure => 'Active';
   String get fix => 'Fix';
-  String get dndSilentActive => 'DND & Silent active';
+  String get dndSilentActive => 'Silent & DND protected';
+
+  // Dashboard Section Headers
+  String get sectionOverview => 'Overview & Status';
+  String get sectionOverviewDesc => 'Live status and quick shortcuts';
+  String get sectionAudioDelivery => 'Audio & Devices';
+  String get sectionAudioDeliveryDesc => 'Choose speaker or earphones for announcements';
+  String get sectionSilenceDnd => 'Silent & DND Settings';
+  String get sectionSilenceDndDesc => 'Prevent speaking during quiet hours or meetings';
+  String get sectionRepeatMode => 'Repeat Announcement';
+  String get sectionRepeatModeDesc => 'How many times the caller name repeats aloud';
+  String get sectionTheme => 'App Theme';
+  String get sectionThemeDesc => 'Dark mode, Light mode, or System default';
+  String get sectionShortcuts => 'Quick Shortcuts';
+  String get sectionShortcutsDesc => 'Manage contacts and call rules';
+  String get sectionSimulator => 'Test Voice Announcement';
+  String get sectionSimulatorDesc => 'Hear a sample call announcement in selected voice';
 
   // Speech & Voice Settings
-  String get speechSettings => 'Speech & Voice Settings';
-  String get appLanguage => 'App Display Language';
-  String get appLanguageDesc => 'Language of screens, menus, and buttons';
-  String get selectAppLanguage => 'Select App Language';
-  String get announcementLanguage => 'Announcement Language';
-  String get announcementVoiceLanguage => 'Announcement Voice Language';
-  String get announcementVoiceDesc => 'Voice dialect used to speak caller names';
-  String get selectLanguage => 'Select spoken voice language';
-  String get speechRate => 'Speech Rate';
+  String get speechSettings => 'Voice & Language';
+  String get speechSettingsDesc => 'Choose voice language, speed, and repeats';
+  String get appLanguage => 'App Language';
+  String get appLanguageDesc => 'Language used for app screens and buttons';
+  String get selectAppLanguage => 'Choose App Language';
+  String get announcementLanguage => 'Caller Voice Language';
+  String get announcementVoiceLanguage => 'Caller Voice Language';
+  String get announcementVoiceDesc => 'Language used to speak caller names';
+  String get selectLanguage => 'Choose voice language';
+  String get speechRate => 'Voice Speed';
   String get speechRateSlow => 'Slow';
   String get speechRateNormal => 'Normal';
   String get speechRateFast => 'Fast';
-  String get repeatMode => 'Repeat Mode';
-  String get bluetoothOnly => 'Bluetooth / Headset Only';
-  String get bluetoothOnlyDesc => 'Only announce when wireless audio is connected';
-  String get speakerOutput => 'Also on Speaker';
-  String get speakerOutputDesc => 'Announce on loudspeaker even if earphones connected';
-  String get silenceInSilent => 'Respect Silent Mode';
-  String get silenceInSilentDesc => 'Muted when phone is in silent or vibrate mode';
-  String get silenceInDnd => 'Respect DND Mode';
-  String get silenceInDndDesc => 'Muted when Do Not Disturb is active';
+  String get repeatMode => 'Repeat Announcement';
+  String get repeatModeDesc => 'How many times caller name will be spoken';
+  String get bluetoothOnly => 'Earphones / Bluetooth Only';
+  String get bluetoothOnlyDesc => 'Only speak name when earphones or Bluetooth are connected';
+  String get speakerOutput => 'Also Speak on Speaker';
+  String get speakerOutputDesc => 'Speak on phone speaker even when earphones are plugged in';
+  String get silenceInSilent => 'Stay Quiet in Silent Mode';
+  String get silenceInSilentDesc => 'Do not speak name if phone is on Silent or Vibrate';
+  String get silenceInDnd => 'Stay Quiet in DND (Do Not Disturb)';
+  String get silenceInDndDesc => 'Do not speak name when Do Not Disturb is ON';
 
   // Permissions Dialog
-  String get permissionsRequiredTitle => 'Permissions Required';
+  String get permissionsRequiredTitle => 'Permissions Needed';
   String get permissionsRequiredDesc =>
-      'To speak caller names for incoming calls, Smart Call Announce needs access to:';
-  String get phoneCallsState => 'Phone Calls & State';
-  String get phoneCallsStateDesc => 'Detect incoming calls & numbers';
-  String get contactsAccess => 'Contacts Access';
-  String get contactsAccessDesc => 'Speak caller names from address book';
-  String get notificationsAudio => 'Notifications & Audio';
-  String get notificationsAudioDesc => 'Run background announcer and support headsets';
-  String get grantAllPermissions => 'Grant All Permissions';
+      'To speak caller names when calls arrive, the app needs access to:';
+  String get phoneCallsState => 'Phone Calls';
+  String get phoneCallsStateDesc => 'Detect when a call is arriving';
+  String get contactsAccess => 'Contacts';
+  String get contactsAccessDesc => 'Read contact names to speak them aloud';
+  String get notificationsAudio => 'Notifications & Sound';
+  String get notificationsAudioDesc => 'Keep announcer running in the background';
+  String get grantAllPermissions => 'Allow Permissions';
   String get cancel => 'Cancel';
   String get allow => 'Allow';
   String get permissionsRequiredSnack =>
-      'Permissions are required to announce caller names.';
-  String get callerAnnouncerActivated => 'Caller Announcer activated!';
-  String get callerAnnouncementPaused => 'Caller announcement paused';
+      'Please allow permissions to speak caller names.';
+  String get callerAnnouncerActivated => 'Caller Announcer turned ON!';
+  String get callerAnnouncementPaused => 'Caller Announcer turned OFF';
 
   // Live Preview & Simulation
-  String get simulateIncomingCall => 'Simulate Incoming Call';
-  String get testVoice => 'Test Live Voice';
+  String get simulateIncomingCall => 'Test Voice Announcement';
+  String get testVoice => 'Test Voice';
   String get stopVoice => 'Stop Voice';
-  String get playingPreview => 'Playing preview';
-  String get previewStopped => 'Announcement preview stopped';
+  String get playingPreview => 'Playing voice sample...';
+  String get previewStopped => 'Voice test stopped';
   String get vipContact => 'VIP Contact';
   String get savedContact => 'Saved Contact';
-  String get officeColleague => 'Office Colleague';
+  String get officeColleague => 'Work Contact';
   String get unknownNumber => 'Unknown Number';
 
   // Contacts Screen
-  String get searchContactsHint => 'Search contacts & rules';
-  String get syncContacts => 'Sync Contacts';
-  String get syncingContacts => 'Syncing device contacts...';
+  String get searchContactsHint => 'Search contacts...';
+  String get syncContacts => 'Load Contacts';
+  String get syncingContacts => 'Loading contacts from phone...';
   String get contactsLoadedSuccess => 'Contacts loaded successfully!';
-  String get contactsPermissionNeeded => 'Contacts Permission Needed';
+  String get contactsPermissionNeeded => 'Contact Permission Needed';
   String get contactsPermissionBannerDesc =>
-      'Allow access to automatically display contacts and announce caller names.';
-  String get contactsPermissionRequired => 'Contacts Permission Required';
+      'Allow contact access so the app can announce who is calling.';
+  String get contactsPermissionRequired => 'Contact Permission Required';
   String get contactsPermissionRequiredDesc =>
-      'Grant contacts permission so Smart Call Announce can show and announce who is calling.';
-  String get grantPermission => 'Grant Permission';
+      'Allow contact access so the app can speak names from your phonebook.';
+  String get grantPermission => 'Allow Permission';
   String get filterAll => 'All';
-  String get filterCustomized => 'Customized';
+  String get filterCustomized => 'Custom';
   String get filterVip => 'VIP';
   String get filterMuted => 'Muted';
-  String get noContactsFound => 'No contacts match';
+  String get noContactsFound => 'No contacts found';
   String get noContactsInList => 'No contacts in this list';
   String get tapSyncToReimport =>
-      'Tap "Sync Contacts" to re-import from your device or "Add Rule" below.';
-  String get addRule => 'Add Rule';
+      'Tap "Load Contacts" to refresh contacts from your phone.';
+  String get addRule => 'Add Contact';
   String get newContactRule => 'New Contact Rule';
   String get name => 'Name';
   String get phoneNumber => 'Phone Number';
-  String get customAnnouncementText => 'Custom Announcement Text';
-  String get saveRule => 'Save Rule';
+  String get customAnnouncementText => 'What to say for this contact';
+  String get saveRule => 'Save';
   String get saveChanges => 'Save Changes';
-  String get personalizeFor => 'Personalize for';
-  String get aiSuggest => 'AI Suggest';
+  String get personalizeFor => 'Custom message for';
+  String get aiSuggest => 'AI Ideas';
   String get insert => 'Insert:';
-  String get previewAnnouncement => 'Preview Announcement';
+  String get previewAnnouncement => 'Listen';
   String get delete => 'Delete';
 
   // Rules Screen (Category Rules)
-  String get categoryRulesTitle => 'Category-Based Rules';
+  String get categoryRulesTitle => 'Default Call Rules';
   String get categoryRulesSubtitle =>
-      'Define how calls are announced when an individual contact does not have a custom rule.';
+      'How to announce calls when a contact does not have custom settings';
   String get savedContactsTitle => 'Saved Contacts';
-  String get savedContactsSubtitle => 'Default behavior for known address book contacts';
+  String get savedContactsSubtitle => 'Calls from people in your phonebook';
   String get unknownNumbersTitle => 'Unknown Numbers';
   String get unknownNumbersSubtitle =>
-      'Announce calls from numbers not saved in contacts';
+      'Calls from numbers not saved in your phone';
   String get vipContactsTitle => 'VIP Contacts';
   String get vipContactsSubtitle =>
-      'Priority contacts with special announcement behavior';
-  String get editCategoryRule => 'Edit Default Rule';
-  String get announcementTemplate => 'Announcement Template';
-  String get silentModeBehavior => 'Silent & DND Mode Behavior';
-  String get respectSilent => 'Respect Silent';
-  String get bypassSilent => 'Bypass Silent';
-  String get saveCategoryRule => 'Save Category Rule';
+      'Important contacts with special announcement';
+  String get spamCallersTitle => 'Spam Callers';
+  String get spamCallersSubtitle =>
+      'Warning for suspected spam or telemarketer numbers';
+  String get editCategoryRule => 'Edit Rule';
+  String get announcementTemplate => 'Announcement Message';
+  String get silentModeBehavior => 'In Silent & DND Mode';
+  String get respectSilent => 'Stay Quiet';
+  String get bypassSilent => 'Speak Even in Silent';
+  String get saveCategoryRule => 'Save Rule';
+
+  // Smart Features Screen
+  String get smartFeaturesTitle => 'Smart AI & Features';
+  String get smartFeaturesBannerTitle => 'Smart Voice Assistant';
+  String get smartFeaturesBannerDesc =>
+      'Helpful tools to make caller announcements clearer and smarter.';
+  String get smartAiAnnounceTitle => 'AI Voice Suggestions';
+  String get smartAiAnnounceDesc =>
+      'Suggests friendly announcement messages based on the caller.';
+  String get smartPhoneticTitle => 'Clear Indian Pronunciation';
+  String get smartPhoneticDesc =>
+      'Improves name pronunciation so Indian names sound natural.';
+  String get smartVipTitle => 'VIP Call Priority';
+  String get smartVipDesc =>
+      'Speaks aloud for VIP calls even if phone is on Silent or DND.';
+  String get smartSpamTitle => 'Spam Call Warning';
+  String get smartSpamDesc =>
+      'Says "Warning: Spam Call" before announcing unknown spam numbers.';
+  String get smartEarbudTitle => 'Earphones Private Mode';
+  String get smartEarbudDesc =>
+      'Keeps speaker muted when earphones or Bluetooth are plugged in.';
 }

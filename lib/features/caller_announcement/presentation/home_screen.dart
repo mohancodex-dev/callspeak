@@ -447,8 +447,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // 2. Dashboard Statistics & Feature Hub (2x2 Quick Navigation Grid)
               _buildDashboardSectionHeader(
-                title: 'Overview & Status',
-                subtitle: 'Live engine metrics and fast tab shortcuts',
+                title: strings.sectionOverview,
+                subtitle: strings.sectionOverviewDesc,
                 theme: theme,
                 colorScheme: colorScheme,
               ),
@@ -463,27 +463,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 3. Repeat Announcement Policy (User's primary requirement!)
+              // 3. Audio Delivery & Routing Controls
               _buildDashboardSectionHeader(
-                title: strings.repeatMode,
-                subtitle: 'How many times the caller name repeats aloud',
-                theme: theme,
-                colorScheme: colorScheme,
-              ),
-              const SizedBox(height: 10),
-              _buildRepeatPolicyCard(
-                settings: settings,
-                effectiveRepeat: effectiveRepeat,
-                theme: theme,
-                colorScheme: colorScheme,
-                strings: strings,
-              ),
-              const SizedBox(height: 22),
-
-              // 4. Audio Delivery & Routing Controls
-              _buildDashboardSectionHeader(
-                title: 'Audio Delivery & Devices',
-                subtitle: 'Routing rules for headset, speaker, and car audio',
+                title: strings.sectionAudioDelivery,
+                subtitle: strings.sectionAudioDeliveryDesc,
                 theme: theme,
                 colorScheme: colorScheme,
               ),
@@ -497,10 +480,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 5. Silence & DND Protection
+              // 4. Silence & DND Protection
               _buildDashboardSectionHeader(
-                title: 'Silence & DND Guard',
-                subtitle: 'Prevent announcements during quiet hours or meetings',
+                title: strings.sectionSilenceDnd,
+                subtitle: strings.sectionSilenceDndDesc,
                 theme: theme,
                 colorScheme: colorScheme,
               ),
@@ -513,10 +496,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
+              // 5. Repeat Announcement Policy (Placed after Silence & DND Guard)
+              _buildDashboardSectionHeader(
+                title: strings.sectionRepeatMode,
+                subtitle: strings.sectionRepeatModeDesc,
+                theme: theme,
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 10),
+              _buildRepeatPolicyCard(
+                settings: settings,
+                effectiveRepeat: effectiveRepeat,
+                theme: theme,
+                colorScheme: colorScheme,
+                strings: strings,
+              ),
+              const SizedBox(height: 22),
+
               // 6. Voice Engine, Language & Speed
               _buildDashboardSectionHeader(
                 title: strings.speechSettings,
-                subtitle: strings.selectLanguage,
+                subtitle: strings.speechSettingsDesc,
                 theme: theme,
                 colorScheme: colorScheme,
               ),
@@ -532,8 +532,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // 7. App Appearance & Theme
               _buildDashboardSectionHeader(
-                title: 'App Theme & Display',
-                subtitle: 'Dark mode, Light mode, or System default',
+                title: strings.sectionTheme,
+                subtitle: strings.sectionThemeDesc,
                 theme: theme,
                 colorScheme: colorScheme,
               ),
@@ -1021,7 +1021,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                     ),
                     Text(
-                      'Test announcement in selected voice (${_languageNames[settings.language] ?? settings.language})',
+                      '${strings.sectionSimulatorDesc} (${_languageNames[settings.language] ?? settings.language})',
                       style: TextStyle(fontSize: 11.5, color: theme.hintColor),
                     ),
                   ],
@@ -1148,7 +1148,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   children: [
                     Text(strings.repeatMode, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                     Text(
-                      'Controls how many times caller names repeat during a call',
+                      strings.repeatModeDesc,
                       style: TextStyle(fontSize: 11.5, color: theme.hintColor),
                     ),
                   ],
@@ -1269,7 +1269,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: Text(strings.bluetoothOnly, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
               bluetoothConnected
-                  ? 'Wireless audio connected — announcements will play'
+                  ? (strings.languageCode.startsWith('hi')
+                      ? 'ईयरफोन कनेक्टेड है — नाम बोलेगा'
+                      : 'Earphones connected — will speak name')
                   : strings.bluetoothOnlyDesc,
               style: TextStyle(fontSize: 12, color: theme.hintColor),
             ),
@@ -1578,9 +1580,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Icon(Icons.bolt_rounded, color: colorScheme.primary, size: 20),
               const SizedBox(width: 8),
-              const Text(
-                'Quick Navigation Shortcuts',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              Text(
+                strings.sectionShortcuts,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
               ),
             ],
           ),

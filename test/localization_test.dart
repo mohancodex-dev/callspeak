@@ -58,14 +58,14 @@ void main() {
       expect(fallback, isNotNull);
       expect(fallback.navHome, equals('Home'));
       expect(fallback.navContacts, equals('Contacts'));
-      expect(fallback.announcerActive, equals('Announcer Active'));
+      expect(fallback.announcerActive, equals('Announcer ON'));
     });
 
     test('Specific regional script verifications', () {
       // Hindi
       final hi = AppLocalizations.of('hi-IN');
       expect(hi.navHome, equals('होम'));
-      expect(hi.navContacts, equals('संपर्क'));
+      expect(hi.navContacts, equals('कॉन्टैक्ट्स'));
       expect(hi.repeatLabel3, equals('3 बार'));
 
       // Gujarati
