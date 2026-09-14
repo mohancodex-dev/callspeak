@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:callspeak/features/contact_announce/services/contact_rule_service.dart';
+import 'package:callspeak/features/contact_announce/presentation/widgets/protected_template_field.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +70,69 @@ void main() {
       expect(savedJson, isNotNull);
       expect(savedJson!.contains('contact_1'), isFalse);
       expect(savedJson.contains('Actual Client'), isTrue);
+    });
+  });
+
+  group('MandatoryPlaceholderFormatter Tests', () {
+    const formatter = MandatoryPlaceholderFormatter('{name}');
+
+    test('Allows typing text before {name}', () {
+      const oldValue = TextEditingValue(
+        text: '{name}',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+      const newValue = TextEditingValue(
+        text: 'Call from {name}',
+        selection: TextSelection.collapsed(offset: 10),
+      );
+
+      final result = formatter.formatEditUpdate(oldValue, newValue);
+      expect(result.text, equals('Call from {name}'));
+    });
+
+    test('Allows typing text after {name}', () {
+      const oldValue = TextEditingValue(
+        text: '{name}',
+        selection: TextSelection.collapsed(offset: 6),
+      );
+      const newValue = TextEditingValue(
+        text: '{name} is calling',
+        selection: TextSelection.collapsed(offset: 17),
+      );
+
+      final result = formatter.formatEditUpdate(oldValue, newValue);
+      expect(result.text, equals('{name} is calling'));
+    });
+
+    test('Rejects deletion of {name} when backspacing', () {
+      const oldValue = TextEditingValue(
+        text: '{name}',
+        selection: TextSelection.collapsed(offset: 6),
+      );
+      // User pressed backspace, deleting '}'
+      const newValue = TextEditingValue(
+        text: '{name',
+        selection: TextSelection.collapsed(offset: 5),
+      );
+
+      final result = formatter.formatEditUpdate(oldValue, newValue);
+      // Must reject and retain old value
+      expect(result.text, equals('{name}'));
+    });
+
+    test('Rejects clearing all text or cutting {name}', () {
+      const oldValue = TextEditingValue(
+        text: '{name} is calling',
+        selection: TextSelection(baseOffset: 0, extentOffset: 17),
+      );
+      // User selected all and deleted
+      const newValue = TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+
+      final result = formatter.formatEditUpdate(oldValue, newValue);
+      expect(result.text, equals('{name} is calling'));
     });
   });
 }

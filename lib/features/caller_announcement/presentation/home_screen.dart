@@ -20,44 +20,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _selectedSimulatedCallerIndex = 0;
   bool _isPlayingPreview = false;
-
-  static const List<Map<String, String>> _sampleCallers = [
-    {'name': 'VIP Contact', 'tag': 'VIP', 'number': '+91 98000 00001'},
-    {'name': 'Saved Contact', 'tag': 'Saved', 'number': '+91 98000 00002'},
-    {'name': 'Office Colleague', 'tag': 'Work', 'number': '+91 98000 00003'},
-    {'name': 'Unknown Number', 'tag': 'Unknown', 'number': '+91 98000 00004'},
-  ];
 
   static const Map<String, String> _languageNames = AnnouncementLanguages.languageNames;
 
-  String _getSampleCallerName(int index, AppStrings strings) {
-    return switch (index) {
-      0 => strings.vipContact,
-      1 => strings.savedContact,
-      2 => strings.officeColleague,
-      3 => strings.unknownNumber,
-      _ => strings.savedContact,
-    };
-  }
-
-  String _getSimulatedMessage(String language, Map<String, String> caller, [AppStrings? strings, int? index]) {
-    final isUnknown = caller['tag'] == 'Unknown';
-    if (isUnknown) {
-      return AnnouncementLanguages.getUnknownAnnouncement(
-        language: language,
-        phoneNumber: caller['number'],
-      );
-    } else {
-      final name = (strings != null && index != null)
-          ? _getSampleCallerName(index, strings)
-          : (caller['name'] ?? 'Someone');
-      return AnnouncementLanguages.getContactAnnouncement(
-        language: language,
-        name: name,
-      );
-    }
+  String _getSimulatedMessage(String language) {
+    return AnnouncementLanguages.getContactAnnouncement(
+      language: language,
+      name: 'Rahul',
+    );
   }
 
   String _getRepeatLabel(String repeatMode, [AppStrings? strings]) {
@@ -91,8 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     setState(() => _isPlayingPreview = true);
-    final sample = _sampleCallers[_selectedSimulatedCallerIndex];
-    final message = _getSimulatedMessage(settings.language, sample, strings, _selectedSimulatedCallerIndex);
+    final message = _getSimulatedMessage(settings.language);
 
     try {
       await bridge.previewAnnouncement(
@@ -493,16 +463,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 3. Live Announcement Simulator Card
-              _buildVoiceSimulatorCard(
-                settings: settings,
-                theme: theme,
-                colorScheme: colorScheme,
-                strings: strings,
-              ),
-              const SizedBox(height: 22),
-
-              // 4. Repeat Announcement Policy (User's primary requirement!)
+              // 3. Repeat Announcement Policy (User's primary requirement!)
               _buildDashboardSectionHeader(
                 title: strings.repeatMode,
                 subtitle: 'How many times the caller name repeats aloud',
@@ -519,7 +480,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 5. Audio Delivery & Routing Controls
+              // 4. Audio Delivery & Routing Controls
               _buildDashboardSectionHeader(
                 title: 'Audio Delivery & Devices',
                 subtitle: 'Routing rules for headset, speaker, and car audio',
@@ -536,7 +497,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 6. Silence & DND Protection
+              // 5. Silence & DND Protection
               _buildDashboardSectionHeader(
                 title: 'Silence & DND Guard',
                 subtitle: 'Prevent announcements during quiet hours or meetings',
@@ -552,7 +513,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 7. Voice Engine, Language & Speed
+              // 6. Voice Engine, Language & Speed
               _buildDashboardSectionHeader(
                 title: strings.speechSettings,
                 subtitle: strings.selectLanguage,
@@ -569,7 +530,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 22),
 
-              // 8. App Appearance & Theme
+              // 7. App Appearance & Theme
               _buildDashboardSectionHeader(
                 title: 'App Theme & Display',
                 subtitle: 'Dark mode, Light mode, or System default',
@@ -582,14 +543,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 theme: theme,
                 colorScheme: colorScheme,
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 22),
 
-              // 9. Bottom Fast Shortcuts
+              // 8. Bottom Fast Shortcuts
               _buildQuickShortcutsBanner(
                 colorScheme: colorScheme,
                 strings: strings,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
+
+              // 9. Live Announcement Simulator Card (Moved to the end)
+              _buildVoiceSimulatorCard(
+                settings: settings,
+                theme: theme,
+                colorScheme: colorScheme,
+                strings: strings,
+              ),
+              const SizedBox(height: 28),
             ],
           );
         },
@@ -1011,15 +981,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // 3. Live Announcement Voice Simulator Card
+  // Live Announcement Voice Simulator Card
   Widget _buildVoiceSimulatorCard({
     required CallSettings settings,
     required ThemeData theme,
     required ColorScheme colorScheme,
     required AppStrings strings,
   }) {
-    final sample = _sampleCallers[_selectedSimulatedCallerIndex];
-    final previewSpeech = _getSimulatedMessage(settings.language, sample, strings, _selectedSimulatedCallerIndex);
+    final previewSpeech = _getSimulatedMessage(settings.language);
     final repeatLabel = _getRepeatLabel(settings.repeatMode, strings);
 
     return Container(
@@ -1052,38 +1021,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                     ),
                     Text(
-                      'Simulate incoming call to verify announcement output',
+                      'Test announcement in selected voice (${_languageNames[settings.language] ?? settings.language})',
                       style: TextStyle(fontSize: 11.5, color: theme.hintColor),
                     ),
                   ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-
-          // Caller selection chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(_sampleCallers.length, (idx) {
-                final isSelected = _selectedSimulatedCallerIndex == idx;
-                final c = _sampleCallers[idx];
-                final localizedName = _getSampleCallerName(idx, strings);
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text('$localizedName (${c['tag']})'),
-                    selected: isSelected,
-                    onSelected: (val) {
-                      if (val) {
-                        setState(() => _selectedSimulatedCallerIndex = idx);
-                      }
-                    },
-                  ),
-                );
-              }),
-            ),
           ),
           const SizedBox(height: 14),
 
@@ -1496,36 +1440,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Divider(height: 1, indent: 64),
 
           // 2. Announcement Voice Language (Caller TTS)
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.purple.withAlpha(20),
-                shape: BoxShape.circle,
+          InkWell(
+            onTap: () => _showAnnouncementVoiceLanguageSheet(context, ref, settings.language),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withAlpha(20),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.record_voice_over_rounded, color: Colors.purple),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          strings.announcementVoiceLanguage,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_languageNames[settings.language] ?? settings.language} • ${strings.announcementVoiceDesc}',
+                          style: TextStyle(fontSize: 12, color: theme.hintColor),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _languageNames[settings.language]?.split('(').first.trim() ?? settings.language,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.purple),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.record_voice_over_rounded, color: Colors.purple),
-            ),
-            title: Text(strings.announcementVoiceLanguage, style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(
-              '${_languageNames[settings.language] ?? settings.language} • ${strings.announcementVoiceDesc}',
-              style: TextStyle(fontSize: 12, color: theme.hintColor),
-            ),
-            trailing: DropdownButton<String>(
-              value: settings.language,
-              underline: const SizedBox.shrink(),
-              borderRadius: BorderRadius.circular(18),
-              items: _languageNames.entries.map((entry) {
-                return DropdownMenuItem(
-                  value: entry.key,
-                  child: Text(entry.value),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(language: val));
-                }
-              },
             ),
           ),
           const Divider(height: 1, indent: 64),
@@ -1942,6 +1916,174 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                               if (isSelected)
                                 Icon(Icons.check_circle_rounded, color: sheetColorScheme.primary, size: 22)
+                              else
+                                Icon(
+                                  Icons.radio_button_unchecked_rounded,
+                                  color: sheetTheme.hintColor.withAlpha(100),
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAnnouncementVoiceLanguageSheet(BuildContext context, WidgetRef ref, String currentLang) {
+    final sheetTheme = Theme.of(context);
+    final sheetColorScheme = sheetTheme.colorScheme;
+    final strings = ref.read(appStringsProvider);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.75,
+          ),
+          decoration: BoxDecoration(
+            color: sheetTheme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: sheetTheme.dividerColor.withAlpha(120),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withAlpha(25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.record_voice_over_rounded, color: Colors.purple, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.announcementVoiceLanguage,
+                            style: sheetTheme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            strings.announcementVoiceDesc,
+                            style: TextStyle(fontSize: 12, color: sheetTheme.hintColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _languageNames.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final entry = _languageNames.entries.elementAt(index);
+                      final code = entry.key;
+                      final name = entry.value;
+                      final isSelected = code == currentLang;
+
+                      return InkWell(
+                        onTap: () {
+                          final currentSettings = ref.read(settingsProvider).value;
+                          if (currentSettings != null) {
+                            ref.read(settingsProvider.notifier).updateSettings(
+                              currentSettings.copyWith(language: code),
+                            );
+                          }
+                          Navigator.pop(sheetCtx);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.purple.withAlpha(30)
+                                : sheetColorScheme.surfaceContainerLowest,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.purple
+                                  : sheetColorScheme.outlineVariant.withAlpha(40),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.purple
+                                      : sheetColorScheme.surfaceContainerHigh,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  code.split('-').first.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : sheetColorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.purple
+                                            : sheetColorScheme.onSurface,
+                                      ),
+                                    ),
+                                    Text(
+                                      code,
+                                      style: TextStyle(fontSize: 12, color: sheetTheme.hintColor),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(Icons.check_circle_rounded, color: Colors.purple, size: 22)
                               else
                                 Icon(
                                   Icons.radio_button_unchecked_rounded,

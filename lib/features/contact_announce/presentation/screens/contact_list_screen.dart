@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/contact_rule.dart';
 import '../../providers/contact_rule_provider.dart';
+import '../widgets/protected_template_field.dart';
 import 'contact_customize_screen.dart';
 import '../../../caller_announcement/providers/permission_provider.dart';
 import '../../../../core/localization/app_localizations.dart';
@@ -113,10 +114,17 @@ class _ContactListScreenState extends ConsumerState<ContactListScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: customTextCtrl,
+                      inputFormatters: const [
+                        MandatoryPlaceholderFormatter('{name}'),
+                      ],
                       decoration: InputDecoration(
                         labelText: s.customAnnouncementText,
                         hintText: '{name} is calling',
                         prefixIcon: const Icon(Icons.record_voice_over_outlined),
+                        suffixIcon: Tooltip(
+                          message: '{name} is protected and cannot be deleted.',
+                          child: Icon(Icons.lock_rounded, size: 16, color: colorScheme.primary),
+                        ),
                         filled: true,
                         fillColor: colorScheme.surfaceContainerLowest,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),

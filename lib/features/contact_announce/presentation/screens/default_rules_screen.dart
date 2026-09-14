@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/contact_rule.dart';
 import '../../providers/contact_rule_provider.dart';
+import '../widgets/protected_template_field.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/localization/app_strings.dart';
 
@@ -40,7 +41,6 @@ class DefaultRulesScreen extends ConsumerWidget {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             final theme = Theme.of(ctx);
-            final colorScheme = theme.colorScheme;
 
             return Container(
               decoration: BoxDecoration(
@@ -77,16 +77,20 @@ class DefaultRulesScreen extends ConsumerWidget {
                     Text(_getCategorySubtitle(rule.key, rule.subtitle, strings), style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
                     const SizedBox(height: 16),
 
-                    // Template Text
-                    Text(strings.announcementTemplate, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    TextField(
+                    // Template Text with Protected {name} / {number}
+                    ProtectedTemplateField(
                       controller: templateCtrl,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerHighest.withAlpha(80),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      ),
+                      placeholder: rule.key == 'unknown_numbers' ? '{number}' : '{name}',
+                      label: strings.announcementTemplate,
+                      onReset: () {
+                        setSheetState(() {
+                          templateCtrl.text = rule.key == 'unknown_numbers'
+                              ? 'Call from unknown number: {number}'
+                              : (rule.key == 'vip_contacts'
+                                  ? 'Important! VIP call from {name}'
+                                  : 'Incoming call from {name}');
+                        });
+                      },
                     ),
                     const SizedBox(height: 16),
 
@@ -167,10 +171,16 @@ class DefaultRulesScreen extends ConsumerWidget {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
+                          final placeholder = rule.key == 'unknown_numbers' ? '{number}' : '{name}';
+                          var rawText = templateCtrl.text.trim();
+                          if (rawText.isEmpty) {
+                            rawText = rule.announcementTemplate;
+                          }
+                          if (!rawText.contains(placeholder)) {
+                            rawText = '$rawText $placeholder'.trim();
+                          }
                           final updated = rule.copyWith(
-                            announcementTemplate: templateCtrl.text.trim().isNotEmpty
-                                ? templateCtrl.text.trim()
-                                : rule.announcementTemplate,
+                            announcementTemplate: rawText,
                             repeatMode: repeatMode,
                             bluetoothOnly: bluetoothOnly,
                             silentModeBehavior: silentBehavior,

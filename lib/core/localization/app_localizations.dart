@@ -6,18 +6,12 @@ import 'translations/hi_strings.dart';
 import 'translations/rathawi_strings.dart';
 import 'translations/gu_strings.dart';
 import 'translations/mr_strings.dart';
-import 'translations/bn_strings.dart';
 import 'translations/te_strings.dart';
 import 'translations/ta_strings.dart';
 import 'translations/kn_strings.dart';
 import 'translations/ml_strings.dart';
 import 'translations/pa_strings.dart';
-import 'translations/or_strings.dart';
-import 'translations/as_strings.dart';
-import 'translations/ur_strings.dart';
-import 'translations/kok_strings.dart';
 import 'translations/ne_strings.dart';
-import 'translations/sd_strings.dart';
 
 class AppLocalizations {
   static const Map<String, AppStrings> _translations = {
@@ -26,19 +20,13 @@ class AppLocalizations {
     'rathawi-IN': RathawiStrings(),
     'gu-IN': GuStrings(),
     'mr-IN': MrStrings(),
-    'bn-IN': BnStrings(),
     'te-IN': TeStrings(),
     'ta-IN': TaStrings(),
     'kn-IN': KnStrings(),
     'ml-IN': MlStrings(),
     'pa-IN': PaStrings(),
-    'or-IN': OrStrings(),
-    'as-IN': AsStrings(),
-    'ur-IN': UrStrings(),
-    'kok-IN': KokStrings(),
     'ne-IN': NeStrings(),
     'ne-NP': NeStrings(),
-    'sd-IN': SdStrings(),
   };
 
   static AppStrings of(String languageCode) {
@@ -46,7 +34,7 @@ class AppLocalizations {
   }
 
   static bool isRtl(String languageCode) {
-    return languageCode == 'ur-IN' || languageCode == 'sd-IN';
+    return languageCode == 'ur-IN' || languageCode == 'sd-IN' || languageCode == 'ar';
   }
 }
 

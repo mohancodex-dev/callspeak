@@ -10,9 +10,9 @@ import 'package:callspeak/features/caller_announcement/providers/settings_provid
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   group('AppLocalizations & Multi-Language Tests', () {
-    test('All 17 supported announcement languages have valid AppStrings translations', () {
+    test('All 11 supported announcement languages have valid AppStrings translations', () {
       final supported = AnnouncementLanguages.languageNames.keys;
-      expect(supported.length, equals(17));
+      expect(supported.length, equals(11));
 
       for (final langCode in supported) {
         final strings = AppLocalizations.of(langCode);
@@ -42,26 +42,15 @@ void main() {
       }
     });
 
-    test('RTL languages (Urdu and Sindhi) are correctly identified', () {
+    test('RTL identification behavior', () {
       expect(AppLocalizations.isRtl('ur-IN'), isTrue);
       expect(AppLocalizations.isRtl('sd-IN'), isTrue);
+      expect(AppLocalizations.isRtl('ar'), isTrue);
 
-      // LTR languages
-      expect(AppLocalizations.isRtl('en-US'), isFalse);
-      expect(AppLocalizations.isRtl('hi-IN'), isFalse);
-      expect(AppLocalizations.isRtl('rathawi-IN'), isFalse);
-      expect(AppLocalizations.isRtl('gu-IN'), isFalse);
-      expect(AppLocalizations.isRtl('mr-IN'), isFalse);
-      expect(AppLocalizations.isRtl('bn-IN'), isFalse);
-      expect(AppLocalizations.isRtl('te-IN'), isFalse);
-      expect(AppLocalizations.isRtl('ta-IN'), isFalse);
-      expect(AppLocalizations.isRtl('kn-IN'), isFalse);
-      expect(AppLocalizations.isRtl('ml-IN'), isFalse);
-      expect(AppLocalizations.isRtl('pa-IN'), isFalse);
-      expect(AppLocalizations.isRtl('or-IN'), isFalse);
-      expect(AppLocalizations.isRtl('as-IN'), isFalse);
-      expect(AppLocalizations.isRtl('kok-IN'), isFalse);
-      expect(AppLocalizations.isRtl('ne-IN'), isFalse);
+      // Supported LTR languages
+      for (final langCode in AnnouncementLanguages.languageNames.keys) {
+        expect(AppLocalizations.isRtl(langCode), isFalse, reason: '$langCode is LTR');
+      }
     });
 
     test('Fallback to English for unknown language code', () {
@@ -88,10 +77,6 @@ void main() {
       final mr = AppLocalizations.of('mr-IN');
       expect(mr.navHome, equals('मुख्यपृष्ठ'));
 
-      // Bengali
-      final bn = AppLocalizations.of('bn-IN');
-      expect(bn.navHome, equals('হোম'));
-
       // Tamil
       final ta = AppLocalizations.of('ta-IN');
       expect(ta.navHome, equals('முகப்பு'));
@@ -112,17 +97,30 @@ void main() {
       final pa = AppLocalizations.of('pa-IN');
       expect(pa.navHome, equals('ਹੋਮ'));
 
-      // Urdu
-      final ur = AppLocalizations.of('ur-IN');
-      expect(ur.navHome, equals('ہوم'));
-
-      // Sindhi
-      final sd = AppLocalizations.of('sd-IN');
-      expect(sd.navHome, equals('هوم'));
+      // Nepali
+      final ne = AppLocalizations.of('ne-IN');
+      expect(ne.navHome, equals('गृह (होम)'));
 
       // Rathawi
       final rathawi = AppLocalizations.of('rathawi-IN');
       expect(rathawi.navHome, equals('ઘર (હોમ)'));
+    });
+
+    test('Rathawi announcement phrases match expected format', () {
+      expect(
+        AnnouncementLanguages.getContactAnnouncement(
+          language: 'rathawi-IN',
+          name: 'Rahul',
+        ),
+        equals('Rahul ne phon aayrayo'),
+      );
+      expect(
+        AnnouncementLanguages.getUnknownAnnouncement(
+          language: 'rathawi-IN',
+          phoneNumber: '+919876543210',
+        ),
+        equals('+919876543210 ne phon aayrayo'),
+      );
     });
   });
 
@@ -149,11 +147,10 @@ void main() {
       expect(container.read(appStringsProvider).navHome, equals('होम'));
       expect(prefs.getString(AppLanguageNotifier.keyAppLanguage), equals('hi-IN'));
 
-      // Change UI language to Urdu (RTL)
-      await container.read(appLanguageProvider.notifier).setLanguage('ur-IN');
-      expect(container.read(appLanguageProvider), equals('ur-IN'));
-      expect(container.read(appStringsProvider).navHome, equals('ہوم'));
-      expect(container.read(isRtlLanguageProvider), isTrue);
+      // Change UI language to Gujarati
+      await container.read(appLanguageProvider.notifier).setLanguage('gu-IN');
+      expect(container.read(appLanguageProvider), equals('gu-IN'));
+      expect(container.read(appStringsProvider).navHome, equals('હોમ'));
     });
 
     test('Changing CallSettings announcement language does NOT change App UI language', () async {

@@ -312,7 +312,6 @@ object AnnouncementManager {
         return when (languageStr) {
             "hi-IN" -> "अज्ञात नंबर"
             "rathawi-IN" -> "अनजान नंबर"
-            "bn-IN" -> "অজানা নম্বর"
             "te-IN" -> "తెలియని నంబర్"
             "mr-IN" -> "अनोळखी नंबर"
             "ta-IN" -> "தெரியாத எண்"
@@ -320,12 +319,7 @@ object AnnouncementManager {
             "kn-IN" -> "ಅಪರಿಚಿತ ಸಂಖ್ಯೆ"
             "ml-IN" -> "അജ്ഞാത നമ്പർ"
             "pa-IN" -> "ਅਣਜਾਣ ਨੰਬਰ"
-            "or-IN" -> "ଅଜଣା ନମ୍ବର"
-            "as-IN" -> "অচিনাকী নম্বৰ"
-            "ur-IN" -> "نامعلوم نمبر"
-            "kok-IN" -> "अनोळखी नंबर"
             "ne-IN", "ne-NP" -> "अपरिचित नम्बर"
-            "sd-IN" -> "اڻڄাত نمبر"
             else -> "Unknown Number"
         }
     }
@@ -334,21 +328,15 @@ object AnnouncementManager {
         val contactName = if (name.trim().isNotEmpty()) name.trim() else "Someone"
         return when (languageStr) {
             "hi-IN" -> "$contactName का फोन आ रहा है।"
-            "rathawi-IN" -> "$contactName ने फोन आय रयो"
-            "bn-IN" -> "$contactName ফোন করছেন।"
+            "rathawi-IN" -> "$contactName ne phon aayrayo"
             "te-IN" -> "$contactName నుండి కాల్ వస్తోంది."
             "mr-IN" -> "$contactName यांचा फोन येत आहे."
             "ta-IN" -> "$contactName அழைக்கிறார்."
-            "gu-IN" -> "$contactName નો ફોન આવી રહ્યો છે."
+            "gu-IN" -> "$contactName નો ફોન આવી રહ્યો છે।"
             "kn-IN" -> "$contactName ಅವರಿಂದ ಕರೆ ಬರುತ್ತಿದೆ."
             "ml-IN" -> "$contactName വിളിക്കുന്നു."
             "pa-IN" -> "$contactName ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
-            "or-IN" -> "$contactName ଙ୍କର ଫୋନ୍ ଆସୁଛି।"
-            "as-IN" -> "$contactName ফোন কৰিছে।"
-            "ur-IN" -> "$contactName کی کال آ رہی ہے۔"
-            "kok-IN" -> "$contactName चो फोन येता."
             "ne-IN", "ne-NP" -> "$contactName को फोन आउँदैछ।"
-            "sd-IN" -> "$contactName جو فون اچي رهيو آهي."
             else -> "Incoming call from $contactName."
         }
     }
@@ -362,21 +350,15 @@ object AnnouncementManager {
 
         return when (languageStr) {
             "hi-IN" -> "$target का फोन आ रहा है।"
-            "rathawi-IN" -> "$target ने फोन आय रयो"
-            "bn-IN" -> "$target থেকে ফোন আসছে।"
+            "rathawi-IN" -> "$target ne phon aayrayo"
             "te-IN" -> "$target నుండి కాల్ వస్తోంది."
             "mr-IN" -> "$target वरून फोन येत आहे."
             "ta-IN" -> "$target இலிருந்து அழைப்பு வருகிறது."
-            "gu-IN" -> "$target નો ફોન આવી રહ્યો છે."
+            "gu-IN" -> "$target નો ફોન આવી રહ્યો છે।"
             "kn-IN" -> "$target ಇಂದ ಕರೆ ಬರುತ್ತಿದೆ."
             "ml-IN" -> "$target ൽ നിന്ന് കോൾ വരുന്നു."
             "pa-IN" -> "$target ਦਾ ਫ਼ੋਨ ਆ ਰਿਹਾ ਹੈ।"
-            "or-IN" -> "$target ରୁ ଫୋନ୍ ଆସୁଛି।"
-            "as-IN" -> "$target ৰ পৰা ফোন আহিছে।"
-            "ur-IN" -> "$target سے کال آ رہی ہے۔"
-            "kok-IN" -> "$target चो फोन येता."
             "ne-IN", "ne-NP" -> "$target बाट फोन आउँदैछ।"
-            "sd-IN" -> "$target مان ڪال اچي رهي آهي."
             else -> "Incoming call from $target."
         }
     }

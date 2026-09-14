@@ -5,6 +5,7 @@ import '../../providers/contact_rule_provider.dart';
 import '../../../caller_announcement/providers/settings_provider.dart';
 import '../../../../core/constants/announcement_languages.dart';
 import '../widgets/ai_text_generator_sheet.dart';
+import '../widgets/protected_template_field.dart';
 import '../../../../core/localization/app_localizations.dart';
 
 class ContactCustomizeScreen extends ConsumerStatefulWidget {
@@ -63,20 +64,6 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
     super.dispose();
   }
 
-  void _insertPlaceholder(String tag) {
-    final text = _textController.text;
-    final selection = _textController.selection;
-    final newText = selection.isValid
-        ? text.replaceRange(selection.start, selection.end, tag)
-        : '$text $tag';
-    _textController.text = newText;
-    _textController.selection = TextSelection.collapsed(
-      offset: (selection.isValid ? selection.start : text.length) + tag.length,
-    );
-    _isCustomized = true;
-    setState(() {});
-  }
-
   Future<void> _playPreview(String globalLang) async {
     final nativeBridge = ref.read(nativeBridgeProvider);
     if (_isPreviewPlaying) {
@@ -116,9 +103,16 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
   }
 
   void _saveChanges() {
+    var rawText = _textController.text.trim();
+    if (rawText.isEmpty) {
+      rawText = '{name} is calling';
+    } else if (!rawText.contains('{name}')) {
+      rawText = '$rawText {name}'.trim();
+    }
+
     final updatedRule = widget.contact.copyWith(
       isEnabled: _isEnabled,
-      customText: _textController.text.trim().isNotEmpty ? _textController.text.trim() : '{name} is calling',
+      customText: rawText,
       language: _language,
       speechRate: _speechRate,
       volume: _volume,
@@ -339,49 +333,22 @@ class _ContactCustomizeScreenState extends ConsumerState<ContactCustomizeScreen>
                         ],
                       ),
                       const SizedBox(height: 14),
-                      TextField(
+                      ProtectedTemplateField(
                         controller: _textController,
-                        maxLines: 2,
+                        placeholder: '{name}',
                         onChanged: (_) {
                           if (!_isCustomized) setState(() => _isCustomized = true);
                         },
-                        decoration: InputDecoration(
-                          hintText: '{name} is calling you',
-                          filled: true,
-                          fillColor: colorScheme.surfaceContainerHighest,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Text('Insert: ', style: TextStyle(fontSize: 12, color: theme.hintColor)),
-                          ActionChip(
-                            label: const Text('{name}'),
-                            shape: const StadiumBorder(),
-                            onPressed: () => _insertPlaceholder('{name}'),
-                          ),
-                          const SizedBox(width: 8),
-                          ActionChip(
-                            label: const Text('{number}'),
-                            shape: const StadiumBorder(),
-                            onPressed: () => _insertPlaceholder('{number}'),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _isCustomized = false;
-                                _language = globalLanguage;
-                                _textController.text = AnnouncementLanguages.getContactAnnouncement(
-                                  language: globalLanguage,
-                                  name: '{name}',
-                                );
-                              });
-                            },
-                            child: const Text('Reset to Default', style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
+                        onReset: () {
+                          setState(() {
+                            _isCustomized = false;
+                            _language = globalLanguage;
+                            _textController.text = AnnouncementLanguages.getContactAnnouncement(
+                              language: globalLanguage,
+                              name: '{name}',
+                            );
+                          });
+                        },
                       ),
                     ],
                   ],
