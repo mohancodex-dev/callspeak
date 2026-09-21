@@ -8,8 +8,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import android.telephony.PhoneStateListener
-import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -22,8 +20,6 @@ class CallAnnounceService : Service() {
     }
 
     private var telephonyManager: TelephonyManager? = null
-    private var legacyPhoneStateListener: PhoneStateListener? = null
-    private var modernTelephonyCallback: Any? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -53,73 +49,9 @@ class CallAnnounceService : Service() {
                 Log.e(TAG, "Fallback startForeground also failed", e2)
             }
         }
-
-        registerTelephonyListener()
     }
 
-    private fun registerTelephonyListener() {
-        try {
-            telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-            if (telephonyManager == null) return
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-                    override fun onCallStateChanged(state: Int) {
-                        handleTelephonyState(state, null)
-                    }
-                }
-                modernTelephonyCallback = callback
-                telephonyManager?.registerTelephonyCallback(mainExecutor, callback)
-                Log.d(TAG, "Registered modern TelephonyCallback")
-            } else {
-                @Suppress("DEPRECATION")
-                legacyPhoneStateListener = object : PhoneStateListener() {
-                    @Deprecated("Deprecated in Java")
-                    override fun onCallStateChanged(state: Int, incomingNumber: String?) {
-                        handleTelephonyState(state, incomingNumber)
-                    }
-                }
-                @Suppress("DEPRECATION")
-                telephonyManager?.listen(legacyPhoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
-                Log.d(TAG, "Registered legacy PhoneStateListener")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error registering telephony listener: ${e.message}", e)
-        }
-    }
-
-    private fun handleTelephonyState(state: Int, incomingNumber: String?) {
-        Log.d(TAG, "Telephony state changed in service: state=$state, incomingNumber=$incomingNumber")
-        when (state) {
-            TelephonyManager.CALL_STATE_RINGING -> {
-                AnnouncementManager.acquireWakeLock(applicationContext)
-                AnnouncementManager.handleIncomingCall(applicationContext, incomingNumber)
-            }
-            TelephonyManager.CALL_STATE_OFFHOOK,
-            TelephonyManager.CALL_STATE_IDLE -> {
-                AnnouncementManager.onCallEnded(applicationContext)
-            }
-        }
-    }
-
-    private fun unregisterTelephonyListener() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (modernTelephonyCallback as? TelephonyCallback)?.let {
-                    telephonyManager?.unregisterTelephonyCallback(it)
-                }
-                modernTelephonyCallback = null
-            } else {
-                legacyPhoneStateListener?.let {
-                    @Suppress("DEPRECATION")
-                    telephonyManager?.listen(it, PhoneStateListener.LISTEN_NONE)
-                }
-                legacyPhoneStateListener = null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error unregistering telephony listener: ${e.message}", e)
-        }
-    }
+    // Telephony listeners removed: CallReceiver handles intents.
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP_SERVICE") {
@@ -137,7 +69,6 @@ class CallAnnounceService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "CallAnnounceService onDestroy")
-        unregisterTelephonyListener()
         AnnouncementManager.releaseWakeLock()
         super.onDestroy()
     }

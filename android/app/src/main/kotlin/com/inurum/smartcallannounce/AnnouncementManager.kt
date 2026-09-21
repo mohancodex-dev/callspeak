@@ -706,6 +706,18 @@ object AnnouncementManager {
 
         stopSilenceListeners()
         onAnnouncementStoppedListener?.invoke()
+
+        try {
+            registeredContext?.let { ctx ->
+                val serviceIntent = Intent(ctx, CallAnnounceService::class.java).apply {
+                    action = "STOP_SERVICE"
+                }
+                ctx.startService(serviceIntent)
+                Log.d(TAG, "Sent STOP_SERVICE intent to CallAnnounceService")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping CallAnnounceService: ${e.message}")
+        }
     }
 
     private fun startSilenceListeners(context: Context) {

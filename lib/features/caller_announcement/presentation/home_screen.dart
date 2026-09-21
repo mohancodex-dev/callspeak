@@ -462,27 +462,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 24),
 
-          // 3. Silence & DND Protection
-          DashboardSectionHeader(
-            title: strings.sectionSilenceDnd,
-            subtitle: strings.sectionSilenceDndDesc,
-          ),
-          const SizedBox(height: 10),
-          SilenceProtectionCard(
-            settings: settings,
-            strings: strings,
-            onToggleSilentMode: (val) {
-              ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(silenceInSilentMode: val));
-            },
-            onToggleDndMode: (val) {
-              ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(silenceInDndMode: val));
-            },
-          ),
-          const SizedBox(height: 12),
-          SmartSilentHomeCard(strings: strings),
-          const SizedBox(height: 24),
-
-          // 4. Audio Delivery Settings (Bluetooth / Speaker)
+          // 3. Audio Delivery Settings (Bluetooth / Speaker)
           DashboardSectionHeader(
             title: strings.sectionAudioDelivery,
             subtitle: strings.sectionAudioDeliveryDesc,
@@ -510,6 +490,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(alsoAnnounceOnSpeaker: val));
             },
           ),
+          const SizedBox(height: 24),
+
+          // 4. Silence & DND Protection
+          DashboardSectionHeader(
+            title: strings.sectionSilenceDnd,
+            subtitle: strings.sectionSilenceDndDesc,
+          ),
+          const SizedBox(height: 10),
+          SilenceProtectionCard(
+            settings: settings,
+            strings: strings,
+            onToggleSilentMode: (val) {
+              ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(silenceInSilentMode: val));
+            },
+            onToggleDndMode: (val) {
+              ref.read(settingsProvider.notifier).updateSettings(settings.copyWith(silenceInDndMode: val));
+            },
+          ),
+          const SizedBox(height: 12),
+          SmartSilentHomeCard(strings: strings),
           const SizedBox(height: 24),
 
           // 5. Repeat Announcement Policy

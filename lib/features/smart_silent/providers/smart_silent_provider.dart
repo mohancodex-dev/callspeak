@@ -67,7 +67,12 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
       schedules: schedules,
     );
 
-    return _evaluateActiveState(initialState);
+    final evaluatedState = _evaluateActiveState(initialState);
+    
+    // Sync native mode on startup
+    _syncNativeRingerMode(evaluatedState);
+
+    return evaluatedState;
   }
 
   static List<SmartSilentSchedule> _defaultPresets() {
@@ -152,13 +157,16 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
     if (updated.isCurrentlySilenced != current.isCurrentlySilenced ||
         updated.activeScheduleTitle != current.activeScheduleTitle) {
       state = AsyncData(updated);
+      await _syncNativeRingerMode(updated);
+    }
+  }
 
-      final bridge = ref.read(nativeBridgeProvider);
-      if (updated.isCurrentlySilenced) {
-        await bridge.setRingerMode('silent');
-      } else {
-        await bridge.setRingerMode('normal');
-      }
+  Future<void> _syncNativeRingerMode(SmartSilentState currentState) async {
+    final bridge = ref.read(nativeBridgeProvider);
+    if (currentState.isCurrentlySilenced) {
+      await bridge.setRingerMode('silent');
+    } else {
+      await bridge.setRingerMode('normal');
     }
   }
 
@@ -169,15 +177,9 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyMasterEnabled, isEnabled);
 
-    final updated = current.copyWith(isMasterEnabled: isEnabled);
-    state = AsyncData(_evaluateActiveState(updated));
-
-    final bridge = ref.read(nativeBridgeProvider);
-    if (!isEnabled) {
-      await bridge.setRingerMode('normal');
-    } else {
-      await checkActiveSchedule();
-    }
+    final updated = _evaluateActiveState(current.copyWith(isMasterEnabled: isEnabled));
+    state = AsyncData(updated);
+    await _syncNativeRingerMode(updated);
   }
 
   Future<void> addSchedule(SmartSilentSchedule schedule) async {
@@ -187,9 +189,9 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
     final newList = [...current.schedules, schedule];
     await _saveSchedules(newList);
 
-    final updated = current.copyWith(schedules: newList);
-    state = AsyncData(_evaluateActiveState(updated));
-    await checkActiveSchedule();
+    final updated = _evaluateActiveState(current.copyWith(schedules: newList));
+    state = AsyncData(updated);
+    await _syncNativeRingerMode(updated);
   }
 
   Future<void> updateSchedule(SmartSilentSchedule schedule) async {
@@ -199,9 +201,9 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
     final newList = current.schedules.map((s) => s.id == schedule.id ? schedule : s).toList();
     await _saveSchedules(newList);
 
-    final updated = current.copyWith(schedules: newList);
-    state = AsyncData(_evaluateActiveState(updated));
-    await checkActiveSchedule();
+    final updated = _evaluateActiveState(current.copyWith(schedules: newList));
+    state = AsyncData(updated);
+    await _syncNativeRingerMode(updated);
   }
 
   Future<void> toggleSchedule(String id, bool isEnabled) async {
@@ -216,9 +218,9 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
     }).toList();
 
     await _saveSchedules(newList);
-    final updated = current.copyWith(schedules: newList);
-    state = AsyncData(_evaluateActiveState(updated));
-    await checkActiveSchedule();
+    final updated = _evaluateActiveState(current.copyWith(schedules: newList));
+    state = AsyncData(updated);
+    await _syncNativeRingerMode(updated);
   }
 
   Future<void> deleteSchedule(String id) async {
@@ -228,9 +230,9 @@ class SmartSilentNotifier extends AsyncNotifier<SmartSilentState> {
     final newList = current.schedules.where((s) => s.id != id).toList();
     await _saveSchedules(newList);
 
-    final updated = current.copyWith(schedules: newList);
-    state = AsyncData(_evaluateActiveState(updated));
-    await checkActiveSchedule();
+    final updated = _evaluateActiveState(current.copyWith(schedules: newList));
+    state = AsyncData(updated);
+    await _syncNativeRingerMode(updated);
   }
 
   Future<void> _saveSchedules(List<SmartSilentSchedule> schedules) async {

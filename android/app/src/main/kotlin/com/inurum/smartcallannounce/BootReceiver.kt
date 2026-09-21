@@ -21,19 +21,9 @@ class BootReceiver : BroadcastReceiver() {
             action == "android.intent.action.QUICKBOOT_POWERON" || 
             action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             if (SettingsHelper.isAnnouncementEnabled(context)) {
-                Log.d(TAG, "Announcement is enabled, starting CallAnnounceService after boot")
-                val serviceIntent = Intent(context, CallAnnounceService::class.java)
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent)
-                    } else {
-                        context.startService(serviceIntent)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to start CallAnnounceService on boot: ${e.message}", e)
-                }
+                Log.d(TAG, "Announcement is enabled, but service is now on-demand. Waiting for calls.")
             } else {
-                Log.d(TAG, "Announcement is disabled, skipping service start on boot")
+                Log.d(TAG, "Announcement is disabled.")
             }
         }
     }

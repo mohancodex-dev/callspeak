@@ -30,9 +30,6 @@ class MainActivity: FlutterActivity() {
         super.onCreate(savedInstanceState)
         AnnouncementManager.initTts(this)
         checkAndRequestRequiredPermissions()
-        if (SettingsHelper.isAnnouncementEnabled(this)) {
-            startAnnouncerService()
-        }
     }
 
     private fun checkAndRequestRequiredPermissions() {
@@ -72,9 +69,6 @@ class MainActivity: FlutterActivity() {
         if (requestCode == 1001) {
             val allGranted = grantResults.isNotEmpty() && grantResults.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }
             Log.d(TAG, "Native permissions request completed. All granted: $allGranted")
-            if (SettingsHelper.isAnnouncementEnabled(this)) {
-                startAnnouncerService()
-            }
         }
     }
 
@@ -91,7 +85,7 @@ class MainActivity: FlutterActivity() {
                     result.success(isBluetoothAudioConnected())
                 }
                 "startService" -> {
-                    startAnnouncerService()
+                    // Service is now started on-demand by CallReceiver when a call arrives
                     result.success(true)
                 }
                 "stopService" -> {
