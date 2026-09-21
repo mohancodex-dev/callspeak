@@ -191,9 +191,18 @@ class MainActivity: FlutterActivity() {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                 if (notificationManager?.isNotificationPolicyAccessGranted == true) {
                                     when (mode) {
-                                        "silent" -> audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
-                                        "vibrate" -> audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
-                                        else -> audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                                        "silent" -> {
+                                            notificationManager.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_ALARMS)
+                                            audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
+                                        }
+                                        "vibrate" -> {
+                                            notificationManager.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_ALL)
+                                            audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                                        }
+                                        else -> {
+                                            notificationManager.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_ALL)
+                                            audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                                        }
                                     }
                                     result.success(true)
                                 } else {
@@ -202,6 +211,7 @@ class MainActivity: FlutterActivity() {
                                         audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
                                         result.success(true)
                                     } else {
+                                        Log.w(TAG, "DND permission not granted for setting silent mode.")
                                         result.success(false)
                                     }
                                 }
