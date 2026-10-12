@@ -1,5 +1,6 @@
 package com.inurum.smartcallannounce
 
+import android.app.Activity
 import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -96,9 +97,9 @@ object UnlockCaptureManager {
         return false
     }
 
-    fun handleUnlockEvent(context: Context, onComplete: (() -> Unit)? = null) {
+    fun handleUnlockEvent(context: Context, forceCapture: Boolean = false, onComplete: (() -> Unit)? = null) {
         val now = System.currentTimeMillis()
-        if (now - lastUnlockTimestamp < DEBOUNCE_MILLIS) {
+        if (!forceCapture && now - lastUnlockTimestamp < DEBOUNCE_MILLIS) {
             Log.d(TAG, "Ignoring duplicate unlock event within debounce window (${now - lastUnlockTimestamp}ms)")
             onComplete?.invoke()
             return
@@ -137,8 +138,8 @@ object UnlockCaptureManager {
             return
         }
 
-        val inForeground = isAppInForeground(context)
-        Log.d(TAG, "Device unlocked. App in foreground: $inForeground. Attempting front camera capture...")
+        val inForeground = isAppInForeground(context) || context is Activity
+        Log.d(TAG, "Device unlocked. App in foreground: $inForeground (context is Activity: ${context is Activity}). Attempting front camera capture...")
 
         captureFrontCamera(context) { success, photoPath, errorMsg ->
             try {
@@ -166,6 +167,21 @@ object UnlockCaptureManager {
                             errorMsg?.contains("access", ignoreCase = true) == true ||
                             errorMsg?.contains("timed out", ignoreCase = true) == true ||
                             !inForeground
+
+                    if (isBackgroundRestriction && context !is Activity) {
+                        Log.d(TAG, "Background camera restriction detected. Falling back to UnlockCaptureActivity foreground capture.")
+                        try {
+                            val actIntent = Intent(context, UnlockCaptureActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                                        Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                                        Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                            }
+                            context.startActivity(actIntent)
+                            return@captureFrontCamera
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to start fallback UnlockCaptureActivity: ${e.message}")
+                        }
+                    }
 
                     val status = if (isBackgroundRestriction) "camera_restricted" else "error"
                     val displayError = if (isBackgroundRestriction) {
