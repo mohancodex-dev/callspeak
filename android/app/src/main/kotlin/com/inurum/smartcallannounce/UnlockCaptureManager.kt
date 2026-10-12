@@ -39,9 +39,48 @@ object UnlockCaptureManager {
 
     var eventSink: EventChannel.EventSink? = null
 
+    fun setFeatureSettings(context: Context, enabled: Boolean, showNotification: Boolean) {
+        val flutterPrefs = SettingsHelper.getPrefs(context)
+        flutterPrefs.edit()
+            .putBoolean("flutter.unlock_capture_enabled", enabled)
+            .putBoolean("unlock_capture_enabled", enabled)
+            .putBoolean("flutter.unlock_show_notification", showNotification)
+            .putBoolean("unlock_show_notification", showNotification)
+            .apply()
+
+        val defaultPrefs = context.getSharedPreferences(context.packageName + "_preferences", Context.MODE_PRIVATE)
+        defaultPrefs.edit()
+            .putBoolean("flutter.unlock_capture_enabled", enabled)
+            .putBoolean("unlock_capture_enabled", enabled)
+            .putBoolean("flutter.unlock_show_notification", showNotification)
+            .putBoolean("unlock_show_notification", showNotification)
+            .apply()
+
+        Log.d(TAG, "Unlock capture settings synced to native: enabled=$enabled, showNotification=$showNotification")
+    }
+
     fun isFeatureEnabled(context: Context): Boolean {
-        val prefs = SettingsHelper.getPrefs(context)
-        return prefs.getBoolean(PREFS_KEY_ENABLED, false)
+        val flutterPrefs = SettingsHelper.getPrefs(context)
+        if (flutterPrefs.getBoolean("flutter.unlock_capture_enabled", false) ||
+            flutterPrefs.getBoolean("unlock_capture_enabled", false)) {
+            return true
+        }
+
+        val defaultPrefs = context.getSharedPreferences(context.packageName + "_preferences", Context.MODE_PRIVATE)
+        return defaultPrefs.getBoolean("flutter.unlock_capture_enabled", false) ||
+                defaultPrefs.getBoolean("unlock_capture_enabled", false)
+    }
+
+    fun shouldShowNotification(context: Context): Boolean {
+        val flutterPrefs = SettingsHelper.getPrefs(context)
+        if (flutterPrefs.contains("flutter.unlock_show_notification")) {
+            return flutterPrefs.getBoolean("flutter.unlock_show_notification", true)
+        }
+        if (flutterPrefs.contains("unlock_show_notification")) {
+            return flutterPrefs.getBoolean("unlock_show_notification", true)
+        }
+        val defaultPrefs = context.getSharedPreferences(context.packageName + "_preferences", Context.MODE_PRIVATE)
+        return defaultPrefs.getBoolean("unlock_show_notification", true)
     }
 
     fun isAppInForeground(context: Context): Boolean {
@@ -57,16 +96,18 @@ object UnlockCaptureManager {
         return false
     }
 
-    fun handleUnlockEvent(context: Context) {
+    fun handleUnlockEvent(context: Context, onComplete: (() -> Unit)? = null) {
         val now = System.currentTimeMillis()
         if (now - lastUnlockTimestamp < DEBOUNCE_MILLIS) {
             Log.d(TAG, "Ignoring duplicate unlock event within debounce window (${now - lastUnlockTimestamp}ms)")
+            onComplete?.invoke()
             return
         }
         lastUnlockTimestamp = now
 
         if (!isFeatureEnabled(context)) {
             Log.d(TAG, "Unlock capture feature is disabled in settings. Skipping.")
+            onComplete?.invoke()
             return
         }
 
@@ -84,12 +125,15 @@ object UnlockCaptureManager {
                 photoPath = null,
                 errorMessage = "Camera permission not granted. Please enable camera permission in app settings."
             )
-            showUnlockNotification(
-                context = context,
-                title = "Device Unlocked - Action Required",
-                message = "Camera permission is required to capture unlock photo. Tap to grant permission.",
-                needsCapture = false
-            )
+            if (shouldShowNotification(context)) {
+                showUnlockNotification(
+                    context = context,
+                    title = "Device Unlocked - Action Required",
+                    message = "Camera permission is required to capture unlock photo. Tap to grant permission.",
+                    needsCapture = false
+                )
+            }
+            onComplete?.invoke()
             return
         }
 
@@ -97,43 +141,58 @@ object UnlockCaptureManager {
         Log.d(TAG, "Device unlocked. App in foreground: $inForeground. Attempting front camera capture...")
 
         captureFrontCamera(context) { success, photoPath, errorMsg ->
-            if (success && photoPath != null) {
-                Log.d(TAG, "Unlock photo successfully captured: $photoPath")
-                logUnlockRecord(
-                    context = context,
-                    status = "captured",
-                    photoPath = photoPath,
-                    errorMessage = null
-                )
-            } else {
-                Log.w(TAG, "Front camera capture failed on unlock: $errorMsg")
-                // Android 9+ background camera restriction or device limitation
-                val isBackgroundRestriction = errorMsg?.contains("restricted", ignoreCase = true) == true ||
-                        errorMsg?.contains("disabled", ignoreCase = true) == true ||
-                        errorMsg?.contains("access", ignoreCase = true) == true ||
-                        !inForeground
-
-                val status = if (isBackgroundRestriction) "camera_restricted" else "error"
-                val displayError = if (isBackgroundRestriction) {
-                    "Android OS restricted background camera access for privacy. Tap notification to verify."
+            try {
+                if (success && photoPath != null) {
+                    Log.d(TAG, "Unlock photo successfully captured: $photoPath")
+                    logUnlockRecord(
+                        context = context,
+                        status = "captured",
+                        photoPath = photoPath,
+                        errorMessage = null
+                    )
+                    if (shouldShowNotification(context)) {
+                        showUnlockNotification(
+                            context = context,
+                            title = "Device Unlocked: Photo Captured",
+                            message = "Intruder security photo captured successfully.",
+                            needsCapture = false
+                        )
+                    }
                 } else {
-                    errorMsg ?: "Unknown camera capture error."
+                    Log.w(TAG, "Front camera capture failed on unlock: $errorMsg")
+                    // Android 9+ background camera restriction or device limitation
+                    val isBackgroundRestriction = errorMsg?.contains("restricted", ignoreCase = true) == true ||
+                            errorMsg?.contains("disabled", ignoreCase = true) == true ||
+                            errorMsg?.contains("access", ignoreCase = true) == true ||
+                            errorMsg?.contains("timed out", ignoreCase = true) == true ||
+                            !inForeground
+
+                    val status = if (isBackgroundRestriction) "camera_restricted" else "error"
+                    val displayError = if (isBackgroundRestriction) {
+                        "Android OS restricted background camera access for privacy. Tap notification to verify."
+                    } else {
+                        errorMsg ?: "Unknown camera capture error."
+                    }
+
+                    logUnlockRecord(
+                        context = context,
+                        status = status,
+                        photoPath = null,
+                        errorMessage = displayError
+                    )
+
+                    // Show fallback notification so user can tap and capture immediately in foreground
+                    if (shouldShowNotification(context)) {
+                        showUnlockNotification(
+                            context = context,
+                            title = "Device Unlocked: Security Alert",
+                            message = "Unlock detected. Tap here to capture front camera photo and verify.",
+                            needsCapture = true
+                        )
+                    }
                 }
-
-                logUnlockRecord(
-                    context = context,
-                    status = status,
-                    photoPath = null,
-                    errorMessage = displayError
-                )
-
-                // Show fallback notification so user can tap and capture immediately in foreground
-                showUnlockNotification(
-                    context = context,
-                    title = "Device Unlocked: Security Alert",
-                    message = "Unlock detected. Tap here to capture front camera photo and verify.",
-                    needsCapture = true
-                )
+            } finally {
+                onComplete?.invoke()
             }
         }
     }
@@ -487,12 +546,14 @@ object UnlockCaptureManager {
             PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         )
 
+        val iconRes = if (context.applicationInfo.icon != 0) context.applicationInfo.icon else android.R.drawable.ic_menu_camera
         val builder = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setSmallIcon(iconRes)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
@@ -513,6 +574,7 @@ object UnlockCaptureManager {
             ).apply {
                 description = "Notifications for device unlock events and camera security alerts"
                 enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             manager.createNotificationChannel(channel)
         }

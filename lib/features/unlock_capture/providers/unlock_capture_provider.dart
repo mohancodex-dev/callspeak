@@ -13,6 +13,7 @@ final nativeBridgeProvider = Provider<NativeBridgeService>((ref) => NativeBridge
 /// Provider for Unlock Capture Settings (enabled / disabled toggle)
 class UnlockCaptureSettingsNotifier extends Notifier<UnlockCaptureSettings> {
   static const String keyEnabled = 'unlock_capture_enabled';
+  static const String keyShowNotification = 'unlock_show_notification';
 
   @override
   UnlockCaptureSettings build() {
@@ -24,7 +25,15 @@ class UnlockCaptureSettingsNotifier extends Notifier<UnlockCaptureSettings> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final enabled = prefs.getBool(keyEnabled) ?? false;
-      state = state.copyWith(enabled: enabled);
+      final showNotification = prefs.getBool(keyShowNotification) ?? true;
+      state = state.copyWith(enabled: enabled, showNotification: showNotification);
+      
+      // Ensure native Android layer has latest settings on startup
+      final bridge = ref.read(nativeBridgeProvider);
+      await bridge.setUnlockCaptureSettings(
+        enabled: enabled,
+        showNotification: showNotification,
+      );
     } catch (e) {
       debugPrint('Error loading unlock capture settings: $e');
     }
@@ -35,8 +44,28 @@ class UnlockCaptureSettingsNotifier extends Notifier<UnlockCaptureSettings> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(keyEnabled, enabled);
+      final bridge = ref.read(nativeBridgeProvider);
+      await bridge.setUnlockCaptureSettings(
+        enabled: enabled,
+        showNotification: state.showNotification,
+      );
     } catch (e) {
       debugPrint('Error saving unlock capture setting: $e');
+    }
+  }
+
+  Future<void> setShowNotification(bool showNotification) async {
+    state = state.copyWith(showNotification: showNotification);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(keyShowNotification, showNotification);
+      final bridge = ref.read(nativeBridgeProvider);
+      await bridge.setUnlockCaptureSettings(
+        enabled: state.enabled,
+        showNotification: showNotification,
+      );
+    } catch (e) {
+      debugPrint('Error saving unlock capture notification setting: $e');
     }
   }
 }

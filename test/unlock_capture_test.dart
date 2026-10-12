@@ -6,6 +6,8 @@ import 'package:callspeak/features/unlock_capture/models/unlock_capture_settings
 import 'package:callspeak/features/unlock_capture/providers/unlock_capture_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('UnlockRecord Model Tests', () {
     test('Correctly serializes and deserializes captured record', () {
       final now = DateTime(2026, 10, 12, 14, 30, 0);

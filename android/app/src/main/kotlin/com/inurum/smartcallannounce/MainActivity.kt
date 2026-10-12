@@ -58,6 +58,11 @@ class MainActivity: FlutterActivity() {
             if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 permissions.add(android.Manifest.permission.READ_CONTACTS)
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             if (permissions.isNotEmpty()) {
                 requestPermissions(permissions.toTypedArray(), 1001)
             }
@@ -315,6 +320,12 @@ class MainActivity: FlutterActivity() {
                     val id = call.argument<String>("id") ?: ""
                     val photoPath = call.argument<String>("photoPath")
                     result.success(UnlockCaptureManager.deleteUnlockPhoto(this, id, photoPath))
+                }
+                "setUnlockCaptureSettings" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    val showNotification = call.argument<Boolean>("showNotification") ?: true
+                    UnlockCaptureManager.setFeatureSettings(this, enabled, showNotification)
+                    result.success(true)
                 }
                 "simulateUnlockEvent" -> {
                     UnlockCaptureManager.handleUnlockEvent(this)

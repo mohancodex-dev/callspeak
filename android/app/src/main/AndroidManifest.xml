@@ -78,7 +78,7 @@
         <receiver 
             android:name=".UnlockReceiver" 
             android:exported="true">
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.USER_PRESENT" />
             </intent-filter>
         </receiver>

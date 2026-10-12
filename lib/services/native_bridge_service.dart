@@ -206,6 +206,22 @@ class NativeBridgeService {
     }
   }
 
+  Future<bool> setUnlockCaptureSettings({
+    required bool enabled,
+    required bool showNotification,
+  }) async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('setUnlockCaptureSettings', {
+        'enabled': enabled,
+        'showNotification': showNotification,
+      });
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to sync unlock capture settings to native: '$e'.");
+      return false;
+    }
+  }
+
   Future<bool> requestCameraPermission() async {
     try {
       final result = await _methodChannel.invokeMethod<bool>('requestCameraPermission');
