@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.ImageFormat
 import android.hardware.camera2.*
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
 import android.media.ImageReader
 import android.os.Build
 import android.os.Handler
