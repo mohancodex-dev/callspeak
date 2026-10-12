@@ -8,6 +8,8 @@ import '../widgets/faq_sheet.dart';
 import '../widgets/privacy_policy_sheet.dart';
 import '../widgets/oem_guide_dialog.dart';
 import '../../../caller_announcement/presentation/widgets/background_reliability_dialog.dart';
+import '../../../unlock_capture/presentation/screens/unlock_capture_screen.dart';
+import '../../../unlock_capture/providers/unlock_capture_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -349,7 +351,33 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
 
-          // Section 3: Troubleshooting & Support
+          // Section 3: Security & Intruder Protection
+          _buildSectionHeader(title: 'Security & Intruder Alert', icon: Icons.security_rounded, colorScheme: colorScheme),
+          const SizedBox(height: 8),
+          _buildGroupContainer(
+            colorScheme: colorScheme,
+            children: [
+              _buildSettingTile(
+                icon: Icons.camera_front_rounded,
+                iconColor: Colors.teal,
+                title: 'Automatic Unlock Capture',
+                subtitle: ref.watch(unlockCaptureSettingsProvider).enabled
+                    ? 'Active • Captures photo on device unlock'
+                    : 'Disabled • Tap to configure unlock capture',
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UnlockCaptureScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Section 4: Troubleshooting & Support
           _buildSectionHeader(title: strings.troubleshootingTitle, icon: Icons.help_outline_rounded, colorScheme: colorScheme),
           const SizedBox(height: 8),
           _buildGroupContainer(

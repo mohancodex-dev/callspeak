@@ -29,7 +29,21 @@ class MainActivity: FlutterActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         AnnouncementManager.initTts(this)
+        UnlockCaptureManager.createNotificationChannel(this)
         checkAndRequestRequiredPermissions()
+        handleNotificationTrigger(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleNotificationTrigger(intent)
+    }
+
+    private fun handleNotificationTrigger(intent: Intent?) {
+        if (intent?.getBooleanExtra(UnlockCaptureManager.ACTION_TRIGGER_UNLOCK_CAPTURE, false) == true) {
+            Log.d(TAG, "Launched from unlock security notification. Performing foreground capture.")
+            UnlockCaptureManager.handleUnlockEvent(this)
+        }
     }
 
     private fun checkAndRequestRequiredPermissions() {
@@ -69,6 +83,9 @@ class MainActivity: FlutterActivity() {
         if (requestCode == 1001) {
             val allGranted = grantResults.isNotEmpty() && grantResults.all { it == android.content.pm.PackageManager.PERMISSION_GRANTED }
             Log.d(TAG, "Native permissions request completed. All granted: $allGranted")
+        } else if (requestCode == 1002) {
+            val cameraGranted = grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+            Log.d(TAG, "Camera permission request completed. Granted: $cameraGranted")
         }
     }
 
@@ -264,6 +281,45 @@ class MainActivity: FlutterActivity() {
                         result.success(true)
                     }
                 }
+                "isCameraPermissionGranted" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        result.success(checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "requestCameraPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 1002)
+                    }
+                    result.success(true)
+                }
+                "captureFrontPhoto" -> {
+                    UnlockCaptureManager.captureFrontCamera(this) { success, photoPath, errorMsg ->
+                        if (success && photoPath != null) {
+                            UnlockCaptureManager.logUnlockRecord(this, "captured", photoPath, null)
+                            result.success(mapOf("success" to true, "photoPath" to photoPath))
+                        } else {
+                            UnlockCaptureManager.logUnlockRecord(this, "error", null, errorMsg)
+                            result.success(mapOf("success" to false, "error" to (errorMsg ?: "Capture failed")))
+                        }
+                    }
+                }
+                "getUnlockHistory" -> {
+                    result.success(UnlockCaptureManager.getUnlockHistory(this))
+                }
+                "clearUnlockHistory" -> {
+                    result.success(UnlockCaptureManager.clearUnlockHistory(this))
+                }
+                "deleteUnlockPhoto" -> {
+                    val id = call.argument<String>("id") ?: ""
+                    val photoPath = call.argument<String>("photoPath")
+                    result.success(UnlockCaptureManager.deleteUnlockPhoto(this, id, photoPath))
+                }
+                "simulateUnlockEvent" -> {
+                    UnlockCaptureManager.handleUnlockEvent(this)
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -273,13 +329,11 @@ class MainActivity: FlutterActivity() {
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                    // Could listen to Bluetooth/Call events and send to Flutter here
-                    // Since the background requirement is primary, this is a placeholder
-                    // to satisfy the EventChannel requirement cleanly.
+                    UnlockCaptureManager.eventSink = events
                 }
 
                 override fun onCancel(arguments: Any?) {
-                    
+                    UnlockCaptureManager.eventSink = null
                 }
             }
         )

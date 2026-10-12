@@ -193,5 +193,90 @@ class NativeBridgeService {
       return false;
     }
   }
+
+  // --- Automatic Unlock Capture Bridge Methods ---
+
+  Future<bool> isCameraPermissionGranted() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('isCameraPermissionGranted');
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to check camera permission: '$e'.");
+      return false;
+    }
+  }
+
+  Future<bool> requestCameraPermission() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('requestCameraPermission');
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to request camera permission: '$e'.");
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> captureFrontPhoto() async {
+    try {
+      final result = await _methodChannel.invokeMapMethod<dynamic, dynamic>('captureFrontPhoto');
+      if (result == null) return {'success': false, 'error': 'Null result from native camera'};
+      return {
+        'success': result['success'] == true,
+        'photoPath': result['photoPath']?.toString(),
+        'error': result['error']?.toString(),
+      };
+    } catch (e) {
+      debugPrint("Failed to capture front photo: '$e'.");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<String> getUnlockHistory() async {
+    try {
+      final result = await _methodChannel.invokeMethod<String>('getUnlockHistory');
+      return result ?? '[]';
+    } catch (e) {
+      debugPrint("Failed to fetch unlock history: '$e'.");
+      return '[]';
+    }
+  }
+
+  Future<bool> clearUnlockHistory() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('clearUnlockHistory');
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to clear unlock history: '$e'.");
+      return false;
+    }
+  }
+
+  Future<bool> deleteUnlockPhoto(String id, String? photoPath) async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('deleteUnlockPhoto', {
+        'id': id,
+        'photoPath': photoPath ?? '',
+      });
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to delete unlock photo: '$e'.");
+      return false;
+    }
+  }
+
+  Future<bool> simulateUnlockEvent() async {
+    try {
+      final result = await _methodChannel.invokeMethod<bool>('simulateUnlockEvent');
+      return result ?? false;
+    } catch (e) {
+      debugPrint("Failed to simulate unlock event: '$e'.");
+      return false;
+    }
+  }
+
+  Stream<String> get unlockEventsStream {
+    const eventChannel = EventChannel(ChannelConstants.eventChannel);
+    return eventChannel.receiveBroadcastStream().map((event) => event.toString());
+  }
 }
 
